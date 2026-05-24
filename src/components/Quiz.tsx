@@ -22,6 +22,7 @@ export function Quiz({ metaId, metaTitle, metaColor, progress, onComplete, onAbo
   const [correctCount, setCorrectCount] = useState(0);
   const [timeLeft, setTimeLeft] = useState(20);
   const [isFinished, setIsFinished] = useState(false);
+  const [currentAttemptNum, setCurrentAttemptNum] = useState(1);
   const [finishData, setFinishData] = useState<{coinsToAward: number, newProgress: MetaProgress} | null>(null);
 
   // Animated number component
@@ -113,62 +114,67 @@ export function Quiz({ metaId, metaTitle, metaColor, progress, onComplete, onAbo
     const today = new Date().toISOString().split('T')[0];
     const isAmador = progress?.isAmador || (progress?.totalCoinsEarned && progress.totalCoinsEarned > 0 && progress.lastPlayedDate !== today) ? true : false;
     
-    let attemptsToday = progress?.lastPlayedDate === today ? (progress.attemptsToday || 0) : 0;
-    const isFirstAttemptOfDay = attemptsToday === 0;
-    const highestCoinsToday = progress?.lastPlayedDate === today ? (progress.highestCoinsToday || 0) : 0;
-    
-    let todayCoins = 0;
-    
-    // Treino livre enforced if limit reached
+    // Treino livre check
     const isTreinoLivre = progress?.totalCoinsEarned && progress.totalCoinsEarned >= 150;
-
-    if (isTreinoLivre) {
-      todayCoins = 0;
-    } else if (isAmador) {
-      todayCoins = correctCount * 2;
-    } else {
-      // Copa rewards
-      if (isFirstAttemptOfDay) {
-        if (correctCount === 3) todayCoins = 45;
-        else if (correctCount === 4) todayCoins = 60;
-        else if (correctCount === 5) todayCoins = 125;
+    
+    let coinsOfThisAttempt = 0;
+    if (!isTreinoLivre) {
+      if (currentAttemptNum === 1) {
+        coinsOfThisAttempt = correctCount * 30; // 30 moedas por acerto (máx 150)
+      } else if (currentAttemptNum === 2) {
+        coinsOfThisAttempt = correctCount * 15; // 15 moedas por acerto (máx 75)
       } else {
-        if (correctCount === 3) todayCoins = 30;
-        else if (correctCount === 4) todayCoins = 40;
-        else if (correctCount === 5) todayCoins = 70;
+        coinsOfThisAttempt = correctCount * 5; // 5 moedas por acerto (máx 25)
       }
     }
 
-    let coinsToAward = 0;
-    if (isTreinoLivre) {
-      coinsToAward = 0;
-    } else if (isAmador) {
-      // We still use max logic to guarantee they get value if they score higher today
-      coinsToAward = Math.max(0, todayCoins - highestCoinsToday);
-    } else {
-      coinsToAward = Math.max(0, todayCoins - highestCoinsToday);
-    }
-
     const currentTotal = progress?.totalCoinsEarned || 0;
-    if (!isTreinoLivre && currentTotal + coinsToAward > 150) {
-      coinsToAward = 150 - currentTotal;
-    }
+    // Cap at 150 total coins per meta
+    const coinsToAward = Math.min(150 - currentTotal, coinsOfThisAttempt);
 
     const newProgress: MetaProgress = {
       metaId,
       lastPlayedDate: today,
-      attemptsToday: attemptsToday + 1,
-      highestCoinsToday: Math.max(highestCoinsToday, todayCoins),
+      attemptsToday: 3, // Exhaust attempts by default once they accept and confirm
+      highestCoinsToday: coinsOfThisAttempt,
       totalCoinsEarned: Math.min(150, currentTotal + coinsToAward),
-      isAmador: isAmador || (!isAmador && attemptsToday >= 2 && new Date().getHours() === 23)
+      isAmador
     };
 
     setFinishData({ coinsToAward, newProgress });
   };
 
+  const handleRetry = () => {
+    setCurrentAttemptNum(prev => prev + 1);
+    setIsFinished(false);
+    setFinishData(null);
+    setCurrentIndex(0);
+    setSelectedOption(null);
+    setIsShowingFeedback(false);
+    setCorrectCount(0);
+    setTimeLeft(20);
+    setQuestions(getRandomQuestions(metaId, 5));
+  };
+
   if (questions.length === 0) return null;
 
   if (isFinished && finishData) {
+    const isTreinoLivre = progress?.totalCoinsEarned && progress.totalCoinsEarned >= 150;
+    
+    let coinsOfThisAttempt = 0;
+    let nextMaxCoins = 0;
+    if (currentAttemptNum === 1) {
+      coinsOfThisAttempt = correctCount * 30;
+      nextMaxCoins = 75; // 5 * 15
+    } else if (currentAttemptNum === 2) {
+      coinsOfThisAttempt = correctCount * 15;
+      nextMaxCoins = 25; // 5 * 5
+    } else {
+      coinsOfThisAttempt = correctCount * 5;
+    }
+
+    const canRetry = !isTreinoLivre && correctCount < 5 && currentAttemptNum < 3;
+
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         {/* Blurred backdrop */}
@@ -184,38 +190,107 @@ export function Quiz({ metaId, metaTitle, metaColor, progress, onComplete, onAbo
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden max-w-md w-full text-center p-8 relative z-10"
+          className="bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden max-w-lg w-full text-center p-6 sm:p-8 relative z-10"
         >
-         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-48 h-48 rounded-full bg-brand-500 blur-3xl opacity-20 pointer-events-none" />
-         <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 rounded-full bg-amber-500 blur-3xl opacity-20 pointer-events-none" />
-         
-         <div className="relative z-10 flex flex-col items-center">
-            <div className="w-20 h-20 bg-brand-100 rounded-full flex items-center justify-center mb-6 shadow-sm border-4 border-white">
-              <Trophy className="w-10 h-10 text-brand-600" />
+          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-48 h-48 rounded-full bg-brand-500 blur-3xl opacity-20 pointer-events-none" />
+          <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 rounded-full bg-amber-500 blur-3xl opacity-20 pointer-events-none" />
+          
+          <div className="relative z-10 flex flex-col items-center">
+            <div className="w-16 h-16 bg-brand-100 rounded-full flex items-center justify-center mb-4 shadow-sm border-4 border-white">
+              <Trophy className="w-8 h-8 text-brand-600" />
             </div>
 
-            <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-2 font-[Space_Grotesk]">Resultado do Quiz</h2>
-            <p className="text-base text-slate-500 mb-8 font-medium">Você acertou <span className="text-brand-600 font-bold">{correctCount}</span> de {questions.length} perguntas.</p>
+            {isTreinoLivre ? (
+              <>
+                <h2 className="text-2xl font-bold text-slate-800 mb-2 font-[Space_Grotesk]">Treino Livre Concluído</h2>
+                <p className="text-sm text-slate-500 mb-6 font-medium">Você acertou <span className="text-brand-600 font-bold">{correctCount}</span> de 5 perguntas.</p>
+                
+                <div className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-5 mb-6 text-slate-600 text-sm leading-relaxed font-medium">
+                  Excelente revisão de conhecimento! O modo Treino Livre serve para fixação dos conceitos e não gera moedas ou impacto no ranking.
+                </div>
 
-            <div className="w-full bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-6 mb-8 relative overflow-hidden shadow-inner flex flex-col items-center">
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 bg-amber-400 blur-3xl opacity-20 rounded-full pointer-events-none" />
-              <p className="text-amber-800 font-bold uppercase tracking-widest text-xs mb-2 relative z-10">Moedas Conquistadas</p>
-              <div className="flex items-center justify-center gap-2 relative z-10">
-                <Coins className="w-8 h-8 text-amber-500" />
-                <span className="text-5xl font-bold text-amber-600 font-[Space_Grotesk] leading-none drop-shadow-sm">
-                  <AnimatedNumber value={finishData.coinsToAward} />
-                </span>
-              </div>
-            </div>
+                <button
+                  onClick={() => onComplete(0, correctCount, {
+                    metaId,
+                    lastPlayedDate: new Date().toISOString().split('T')[0],
+                    attemptsToday: (progress?.attemptsToday || 0) + 1,
+                    highestCoinsToday: progress?.highestCoinsToday || 0,
+                    totalCoinsEarned: progress?.totalCoinsEarned || 150,
+                    isAmador: progress?.isAmador || false
+                  })}
+                  className="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-3.5 px-6 rounded-xl transition-all hover:scale-[1.02] active:scale-95 shadow-md flex items-center justify-center gap-2"
+                >
+                  Concluir Treino
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+              </>
+            ) : (
+              <>
+                <h2 className="text-2xl font-bold text-slate-800 mb-1 font-[Space_Grotesk]">Resultado da {currentAttemptNum}ª Tentativa</h2>
+                <p className="text-sm text-slate-500 mb-4 font-medium">Você acertou <span className="text-brand-600 font-bold">{correctCount}</span> de 5 perguntas.</p>
 
-            <button
-               onClick={() => onComplete(finishData.coinsToAward, correctCount, finishData.newProgress)}
-               className="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-4 px-8 rounded-xl transition-all hover:scale-[1.02] active:scale-95 shadow-md flex items-center justify-center gap-2"
-            >
-              Continuar
-              <ArrowRight className="w-5 h-5" />
-            </button>
-         </div>
+                <div className="w-full bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4 sm:p-5 mb-6 relative overflow-hidden shadow-inner flex flex-col items-center">
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 bg-amber-400 blur-3xl opacity-20 rounded-full pointer-events-none" />
+                  <p className="text-amber-800 font-bold uppercase tracking-widest text-[10px] sm:text-xs mb-1 relative z-10">Moedas do Quiz</p>
+                  <div className="flex items-center justify-center gap-1.5 relative z-10">
+                    <Coins className="w-6 h-6 text-amber-500" />
+                    <span className="text-3xl sm:text-4xl font-bold text-amber-600 font-[Space_Grotesk] leading-none drop-shadow-sm">
+                      <AnimatedNumber value={coinsOfThisAttempt} />
+                    </span>
+                    <span className="text-slate-500 font-medium text-xs self-end mb-1">Moedas</span>
+                  </div>
+                </div>
+
+                {canRetry ? (
+                  <div className="w-full space-y-4">
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-left text-xs text-slate-600 leading-relaxed font-semibold">
+                      <Zap className="w-4 h-4 text-amber-500 inline mr-1 mb-0.5" />
+                      <strong>Decisão Estratégica:</strong> Você quer ficar com as <strong>{coinsOfThisAttempt} moedas</strong> atuais de seu acerto ou prefere <strong>abrir mão delas</strong> e tentar outra vez por uma recompensa máxima de <strong>{nextMaxCoins} moedas</strong>?
+                    </div>
+
+                    <div className="grid gap-3">
+                      <button
+                        onClick={() => onComplete(finishData.coinsToAward, correctCount, finishData.newProgress)}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-6 rounded-xl transition-all hover:scale-[1.01] shadow-md flex flex-col items-center justify-center leading-tight"
+                      >
+                        <span className="text-sm">Ficar com {coinsOfThisAttempt} Moedas</span>
+                        <span className="text-[10px] text-emerald-100 font-normal mt-0.5">Encerra o quiz e salva os pontos no ranking do setor</span>
+                      </button>
+
+                      <button
+                        onClick={handleRetry}
+                        className="w-full bg-white hover:bg-slate-50 text-slate-700 border-2 border-slate-200 hover:border-amber-400 font-bold py-3.5 px-6 rounded-xl transition-all flex flex-col items-center justify-center leading-tight group"
+                      >
+                        <span className="text-sm text-slate-700 group-hover:text-amber-600 flex items-center gap-1">
+                          <Zap className="w-4 h-4 text-amber-500 animate-bounce" />
+                          Abrir Mão e Tentar de Novo ({currentAttemptNum + 1}ª Tentativa)
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-normal mt-0.5">Sua pontuação atual será descartada. Prêmio Máx da próxima: {nextMaxCoins} moedas</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-full space-y-4">
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 text-xs text-emerald-800 text-center leading-relaxed font-semibold">
+                      {correctCount === 5 ? (
+                        <span>✨ Excelente! Você acertou todas as perguntas de primeira e obteve a pontuação máxima possível de {coinsOfThisAttempt} moedas!</span>
+                      ) : (
+                        <span>Você concluiu a sua 3ª e última tentativa disponível para hoje! Seus pontos foram finalizados com {coinsOfThisAttempt} moedas.</span>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => onComplete(finishData.coinsToAward, correctCount, finishData.newProgress)}
+                      className="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-3.5 px-6 rounded-xl transition-all hover:scale-[1.02] active:scale-95 shadow-md flex items-center justify-center gap-2"
+                    >
+                      Salvar Pontos e Sair
+                      <ArrowRight className="w-5 h-5" />
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </motion.div>
       </div>
     );

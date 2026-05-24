@@ -199,23 +199,33 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
 
 
   const computeSectorRanking = () => {
-    const sectorMap: Record<string, { totalCoins: number, memberCount: number }> = {};
+    const sectorMap: Record<string, { totalCoins: number, memberCount: number, totalQuizCoins: number }> = {};
     usersList.forEach(u => {
       if (!sectorMap[u.sector]) {
-        sectorMap[u.sector] = { totalCoins: 0, memberCount: 0 };
+        sectorMap[u.sector] = { totalCoins: 0, memberCount: 0, totalQuizCoins: 0 };
       }
-      sectorMap[u.sector].totalCoins += u.coins;
+      sectorMap[u.sector].totalCoins += u.coins || 0;
       sectorMap[u.sector].memberCount += 1;
+
+      // Sum quiz coins earned
+      let quizSum = 0;
+      [1, 2, 3, 4, 5, 6].forEach(metaId => {
+        const prog = u.progress[metaId];
+        quizSum += prog?.totalCoinsEarned || 0;
+      });
+      sectorMap[u.sector].totalQuizCoins += quizSum;
     });
 
     return Object.entries(sectorMap)
       .map(([name, data]) => {
-        const average = data.memberCount > 0 ? Math.round((data.totalCoins / data.memberCount) * 10) / 10 : 0;
-        return { name, ...data, average };
+        const maxQuizCoins = data.memberCount * 6 * 150; // Max possible is 900 per member
+        const aproveitamento = maxQuizCoins > 0 ? Math.round((data.totalQuizCoins / maxQuizCoins) * 1000) / 10 : 0;
+        return { name, ...data, aproveitamento };
       })
       .sort((a, b) => {
-        if (sectorRankingMetric === 'average') {
-          return b.average - a.average;
+        const activeMetric = user.isAdmin ? sectorRankingMetric : 'average';
+        if (activeMetric === 'average') {
+          return b.aproveitamento - a.aproveitamento;
         }
         return b.totalCoins - a.totalCoins;
       });
@@ -1018,63 +1028,86 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {/* Metric selector toggle */}
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-50 p-3 sm:px-4 sm:py-3 rounded-xl border border-slate-200/60 mb-1">
-                      <div>
-                        <span className="text-xs sm:text-sm font-bold text-slate-700 block">
-                          Critério de Classificação dos Setores
-                        </span>
-                        <span className="text-[11px] text-slate-500 block">
-                          Selecione como quer ordenar: por média de engajamento ou total.
-                        </span>
+                    {/* Metric selector toggle - Only visible to admin */}
+                    {user.isAdmin && (
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-50 p-3 sm:px-4 sm:py-3 rounded-xl border border-slate-200/60 mb-1">
+                        <div>
+                          <span className="text-xs sm:text-sm font-bold text-slate-700 block">
+                            Opções de Administrador (Critério de Classificação)
+                          </span>
+                          <span className="text-[11px] text-slate-500 block">
+                            Selecione como quer analisar: por média de aproveitamento ou moedas totais na carteira.
+                          </span>
+                        </div>
+                        <div className="flex bg-slate-200/60 p-1 rounded-lg self-start sm:self-auto shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setSectorRankingMetric('average')}
+                            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${sectorRankingMetric === 'average' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                          >
+                            Aproveitamento % (Mais Justo)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSectorRankingMetric('total')}
+                            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${sectorRankingMetric === 'total' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                          >
+                            Moedas na Carteira
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex bg-slate-200/60 p-1 rounded-lg self-start sm:self-auto shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => setSectorRankingMetric('average')}
-                          className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${sectorRankingMetric === 'average' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
-                        >
-                          Média (Mais Justo)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSectorRankingMetric('total')}
-                          className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${sectorRankingMetric === 'total' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
-                        >
-                          Total Acumulado
-                        </button>
-                      </div>
-                    </div>
+                    )}
 
                     <div className="flex flex-col gap-3">
-                      {computeSectorRanking().map((sector, index) => (
-                        <div key={sector.name} className={`flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl border ${index === 0 ? 'bg-amber-50/70 border-amber-200' : index === 1 ? 'bg-slate-50/70 border-slate-200' : index === 2 ? 'bg-orange-50/70 border-orange-200' : 'bg-white border-slate-100'}`}>
-                          <div className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center font-bold text-sm sm:text-lg rounded-full shrink-0 ${index === 0 ? 'bg-amber-400 text-white shadow-md' : index === 1 ? 'bg-slate-300 text-slate-700 shadow-sm' : index === 2 ? 'bg-orange-300 text-orange-850 shadow-sm' : 'bg-slate-105 text-slate-500 border border-slate-200 bg-slate-50'}`}>
-                            {index + 1}
-                          </div>
-                          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-indigo-50 text-indigo-700 rounded-full flex items-center justify-center font-bold text-lg shrink-0 border border-indigo-100">
-                            <Building2 className="w-5 h-5 sm:w-6 sm:h-6" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-slate-800 truncate text-sm sm:text-base">{sector.name}</h3>
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-xs text-slate-500">
-                              <span><strong>{sector.memberCount}</strong> {sector.memberCount === 1 ? 'membro' : 'membros'}</span>
-                              <span className="text-slate-300">•</span>
-                              <span className={sectorRankingMetric === 'average' ? 'text-brand-750 font-semibold' : ''}>Média: <strong>{sector.average}</strong> moedas/membro</span>
-                              <span className="text-slate-300">•</span>
-                              <span className={sectorRankingMetric === 'total' ? 'text-brand-750 font-semibold' : ''}>Total: <strong>{sector.totalCoins}</strong> moedas</span>
+                      {computeSectorRanking().map((sector, index) => {
+                        const showTotalWalletCoins = user.isAdmin && sectorRankingMetric === 'total';
+                        return (
+                          <div key={sector.name} className={`flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl border ${index === 0 ? 'bg-amber-50/70 border-amber-200' : index === 1 ? 'bg-slate-50/70 border-slate-200' : index === 2 ? 'bg-orange-50/70 border-orange-200' : 'bg-white border-slate-100'}`}>
+                            <div className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center font-bold text-sm sm:text-lg rounded-full shrink-0 ${index === 0 ? 'bg-amber-400 text-white shadow-md' : index === 1 ? 'bg-slate-300 text-slate-700 shadow-sm' : index === 2 ? 'bg-orange-300 text-orange-850 shadow-sm' : 'bg-slate-105 text-slate-500 border border-slate-200 bg-slate-50'}`}>
+                              {index + 1}
+                            </div>
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-indigo-50 text-indigo-700 rounded-full flex items-center justify-center font-bold text-lg shrink-0 border border-indigo-100">
+                              <Building2 className="w-5 h-5 sm:w-6 sm:h-6" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-bold text-slate-800 truncate text-sm sm:text-base">{sector.name}</h3>
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-xs text-slate-500">
+                                <span><strong>{sector.memberCount}</strong> {sector.memberCount === 1 ? 'membro' : 'membros'}</span>
+                                <span className="text-slate-300">•</span>
+                                <span className={!showTotalWalletCoins ? 'text-brand-750 font-bold' : ''}>
+                                  Aproveitamento: <strong>{sector.aproveitamento}%</strong>
+                                </span>
+                                {user.isAdmin && (
+                                  <>
+                                    <span className="text-slate-300">•</span>
+                                    <span>Pontos Quizzes: <strong>{sector.totalQuizCoins}</strong></span>
+                                    <span className="text-slate-300">•</span>
+                                    <span className={showTotalWalletCoins ? 'text-brand-750 font-bold' : ''}>
+                                      Na Carteira: <strong>{sector.totalCoins}</strong> moedas
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <div className="shrink-0 flex flex-col items-end gap-0.5">
+                              <div className="flex items-center gap-1 font-bold text-amber-605 bg-amber-50/80 px-2 sm:px-3 py-1 rounded-lg border border-amber-200/60 text-sm sm:text-base">
+                                {showTotalWalletCoins ? (
+                                  <>
+                                    {sector.totalCoins} <Coins className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500" />
+                                  </>
+                                ) : (
+                                  <>
+                                    {sector.aproveitamento}%
+                                  </>
+                                )}
+                              </div>
+                              <span className="text-[9px] text-slate-400 font-extrabold tracking-wider uppercase">
+                                {showTotalWalletCoins ? 'Carteira' : 'Aproveitamento'}
+                              </span>
                             </div>
                           </div>
-                          <div className="shrink-0 flex flex-col items-end gap-0.5">
-                            <div className="flex items-center gap-1 font-bold text-amber-605 bg-amber-50/80 px-2 sm:px-3 py-1 rounded-lg border border-amber-200/60 text-sm sm:text-base">
-                              {sectorRankingMetric === 'average' ? sector.average : sector.totalCoins} <Coins className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500" />
-                            </div>
-                            <span className="text-[9px] text-slate-400 font-black tracking-wider uppercase">
-                              {sectorRankingMetric === 'average' ? 'Média' : 'Total'}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
