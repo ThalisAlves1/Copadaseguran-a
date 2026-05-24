@@ -66,8 +66,48 @@ import { StickerDefinition, StickerRarity } from './store';
   ========================================================================
 */
 
-const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
+// Helper to load Supabase configuration either from Vite environment variables or browser localStorage
+export function getSupabaseConfig() {
+  const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
+  const envKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
+  
+  if (envUrl && envKey) {
+    return { url: envUrl.trim(), key: envKey.trim(), source: 'env' };
+  }
+  
+  try {
+    const localConfig = localStorage.getItem('husf_supabase_config');
+    if (localConfig) {
+      const parsed = JSON.parse(localConfig);
+      if (parsed?.url && parsed?.key) {
+        return { url: parsed.url.trim(), key: parsed.key.trim(), source: 'local' };
+      }
+    }
+  } catch (e) {
+    console.error('Error reading husf_supabase_config:', e);
+  }
+  
+  return { url: '', key: '', source: 'none' };
+}
+
+// Function to manually set the Supabase config dynamically
+export function setSupabaseConfig(url: string, key: string) {
+  if (!url || !key) {
+    localStorage.removeItem('husf_supabase_config');
+  } else {
+    localStorage.setItem('husf_supabase_config', JSON.stringify({ url: url.trim(), key: key.trim() }));
+  }
+}
+
+// Function to clear manual config
+export function clearSupabaseConfig() {
+  localStorage.removeItem('husf_supabase_config');
+}
+
+const config = getSupabaseConfig();
+export const supabaseUrl = config.url;
+export const supabaseAnonKey = config.key;
+export const supabaseConfigSource = config.source;
 
 export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
 export let lastSupabaseError: string | null = null;
@@ -78,7 +118,7 @@ export const supabaseClient = isSupabaseConfigured
 
 // Default initial user mock if local/Supabase database is empty or not yet provisioned
 export const DB_DEFAULT_USERS: User[] = [
-  { cpf: '111.111.111-11', name: 'Ana Souza', sector: 'UTI Adulto', coins: 30, stickers: [1, 5, 12], progress: {} },
+  { cpf: '111.111.111-11', name: 'Ana Souza', sector: 'UTI Adulto', coins: 30, stickers: [1, 5, 12], progress: {}, isAdmin: true },
   { cpf: '222.222.222-22', name: 'Bruno Santos', sector: 'Pronto Socorro', coins: 10, stickers: [], progress: {} },
   { cpf: '333.333.333-33', name: 'Carolina Lima', sector: 'Centro Cirúrgico', coins: 150, stickers: [], progress: {} },
   { cpf: '444.444.444-44', name: 'Dr. Roberto Alves', sector: 'Clínica Médica', coins: 0, stickers: [], progress: {} },
@@ -99,10 +139,10 @@ export const DB_DEFAULT_STICKERS: StickerDefinition[] = [
 ];
 
 // Helper to prevent database queries from hanging indefinitely if network/firewall/CORS is failing
-function promiseWithTimeout<T>(promise: Promise<T>, timeoutMs = 2500): Promise<T> {
+function promiseWithTimeout<T>(promise: Promise<T>, timeoutMs = 15000): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
-      reject(new Error('Superou tempo limite de resposta da nuvem (2.5s)'));
+      reject(new Error(`Superou tempo limite de resposta da nuvem (${timeoutMs / 1000}s)`));
     }, timeoutMs);
     promise.then(
       (res) => {
@@ -127,34 +167,44 @@ export async function dbGetUsers(): Promise<User[]> {
     if (local) {
       try {
         const parsed = JSON.parse(local);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // If cache exists but doesn't have the default admin, ensure it's merged or added
-          if (!parsed.some(u => u.isAdmin)) {
-            const merged = [...parsed];
-            DB_DEFAULT_USERS.forEach(du => {
-              if (!merged.some(mu => mu.cpf === du.cpf)) {
-                merged.push(du);
-              }
-            });
-            localStorage.setItem('husf_users', JSON.stringify(merged));
-            return merged;
-          }
-          // Enforce Thalis Alves Ramos' name/sector on the admin CPF
+        if (Array.isArray(parsed)) {
+          // Filter out elements that are null or lack a cpf attribute
+          const safeParsed = parsed.filter((u: any) => u && typeof u === 'object' && u.cpf);
+          
           let updated = false;
-          const updatedParsed = parsed.map(u => {
-            if (u.cpf === '136.832.356-16') {
-              if (u.name !== 'Thalis Alves Ramos' || u.sector !== 'Diretoria de Ensino e Pesquisa') {
+          const merged = [...safeParsed];
+          
+          // Verify each default user is present in local cache
+          DB_DEFAULT_USERS.forEach(du => {
+            const cleanDuCpf = du.cpf.replace(/\D/g, '');
+            if (!merged.some(mu => mu && mu.cpf && mu.cpf.replace(/\D/g, '') === cleanDuCpf)) {
+              merged.push(du);
+              updated = true;
+            }
+          });
+
+          const updatedParsed = merged.map(u => {
+            const cleanCpf = u.cpf.replace(/\D/g, '');
+            if (cleanCpf === '13683235616') {
+              if (u.name !== 'Thalis Alves Ramos' || u.sector !== 'Diretoria de Ensino e Pesquisa' || !u.isAdmin) {
                 updated = true;
                 return { ...u, name: 'Thalis Alves Ramos', sector: 'Diretoria de Ensino e Pesquisa', isAdmin: true };
               }
             }
+            if (cleanCpf === '11111111111') {
+              if (!u.isAdmin) {
+                updated = true;
+                return { ...u, isAdmin: true };
+              }
+            }
             return u;
           });
+
           if (updated) {
             localStorage.setItem('husf_users', JSON.stringify(updatedParsed));
             return updatedParsed;
           }
-          return parsed;
+          return safeParsed;
         }
       } catch { }
     }
@@ -172,7 +222,7 @@ export async function dbGetUsers(): Promise<User[]> {
         .from('husf_users')
         .select('*')
         .order('name', { ascending: true }) as any,
-      2500
+      15000
     ) as any;
 
     if (error) throw error;
@@ -181,18 +231,44 @@ export async function dbGetUsers(): Promise<User[]> {
     lastSupabaseError = null;
 
     if (data && data.length > 0) {
-      const parsed: User[] = data.map((u) => {
-        const isThisAdmin = u.cpf === '136.832.356-16';
-        return {
-          cpf: u.cpf,
-          name: isThisAdmin ? 'Thalis Alves Ramos' : u.name,
-          sector: isThisAdmin ? 'Diretoria de Ensino e Pesquisa' : u.sector,
-          coins: Number(u.coins),
-          stickers: Array.isArray(u.stickers) ? u.stickers : [],
-          progress: typeof u.progress === 'object' && u.progress !== null ? u.progress : {},
-          isAdmin: isThisAdmin || !!u.is_admin
-        };
+      // Filter out records from supabase that don't have a valid cpf field
+      const parsed: User[] = data
+        .filter((u: any) => u && typeof u === 'object' && u.cpf)
+        .map((u: any) => {
+          const isThisAdmin = u.cpf === '136.832.356-16' || u.cpf === '111.111.111-11' || String(u.cpf).replace(/\D/g, '') === '11111111111' || String(u.cpf).replace(/\D/g, '') === '13683235616';
+          return {
+            cpf: String(u.cpf),
+            name: isThisAdmin ? (String(u.cpf).replace(/\D/g, '') === '13683235616' ? 'Thalis Alves Ramos' : (u.name || 'Ana Souza')) : (u.name || 'Sem Nome'),
+            sector: isThisAdmin ? (String(u.cpf).replace(/\D/g, '') === '13683235616' ? 'Diretoria de Ensino e Pesquisa' : (u.sector || 'UTI Adulto')) : (u.sector || 'Outro Setor'),
+            coins: typeof u.coins === 'number' ? u.coins : Number(u.coins || 0),
+            stickers: Array.isArray(u.stickers) ? u.stickers : [],
+            progress: typeof u.progress === 'object' && u.progress !== null ? u.progress : {},
+            isAdmin: isThisAdmin || !!u.is_admin
+          };
+        });
+
+      // Ensure all DB_DEFAULT_USERS are present in the list returned to the app
+      let remoteUpdated = false;
+      DB_DEFAULT_USERS.forEach(du => {
+        const cleanDuCpf = du.cpf.replace(/\D/g, '');
+        const matchIndex = parsed.findIndex(p => p.cpf.replace(/\D/g, '') === cleanDuCpf);
+        if (matchIndex === -1) {
+          parsed.push(du);
+          // Proactively upsert to Supabase in background so they exist
+          dbSaveSingleUser(du);
+          remoteUpdated = true;
+        } else {
+          // Enforce admin flag
+          if (cleanDuCpf === '11111111111' || cleanDuCpf === '13683235616') {
+            if (!parsed[matchIndex].isAdmin) {
+              parsed[matchIndex].isAdmin = true;
+              dbSaveSingleUser(parsed[matchIndex]);
+              remoteUpdated = true;
+            }
+          }
+        }
       });
+
       // Keep local sync updated
       localStorage.setItem('husf_users', JSON.stringify(parsed));
       return parsed;

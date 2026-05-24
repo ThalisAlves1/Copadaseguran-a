@@ -1,7 +1,7 @@
 import { User } from '../types';
 import { dbGetUsers, dbSaveUsers, DB_DEFAULT_USERS } from './supabase';
 
-// Initialize local database back-up if not present or migrate existing back-up to Thalis Alves Ramos
+// Initialize local database back-up if not present or migrate existing back-up to Thalis Alves Ramos and Ana Souza admin
 const initialUsersRaw = localStorage.getItem('husf_users');
 if (!initialUsersRaw) {
   localStorage.setItem('husf_users', JSON.stringify(DB_DEFAULT_USERS));
@@ -11,13 +11,24 @@ if (!initialUsersRaw) {
     if (Array.isArray(parsed)) {
       let changed = false;
       const mutated = parsed.map(u => {
-        if (u.cpf === '136.832.356-16') {
-          if (u.name !== 'Thalis Alves Ramos' || u.sector !== 'Diretoria de Ensino e Pesquisa') {
+        if (!u || !u.cpf) return u;
+        const cleanCpf = u.cpf.replace(/\D/g, '');
+        if (cleanCpf === '13683235616') {
+          if (u.name !== 'Thalis Alves Ramos' || u.sector !== 'Diretoria de Ensino e Pesquisa' || !u.isAdmin) {
             changed = true;
             return {
               ...u,
               name: 'Thalis Alves Ramos',
               sector: 'Diretoria de Ensino e Pesquisa',
+              isAdmin: true
+            };
+          }
+        }
+        if (cleanCpf === '11111111111') {
+          if (!u.isAdmin) {
+            changed = true;
+            return {
+              ...u,
               isAdmin: true
             };
           }
@@ -38,11 +49,21 @@ export function getStoredUsers(): User[] {
       const parsed = JSON.parse(data);
       if (Array.isArray(parsed)) {
         return parsed.map(u => {
-          if (u.cpf === '136.832.356-16') {
+          if (!u || !u.cpf) return u;
+          const cleanCpf = u.cpf.replace(/\D/g, '');
+          if (cleanCpf === '13683235616') {
             return {
               ...u,
               name: 'Thalis Alves Ramos',
               sector: 'Diretoria de Ensino e Pesquisa',
+              isAdmin: true
+            };
+          }
+          if (cleanCpf === '11111111111') {
+            return {
+              ...u,
+              name: u.name || 'Ana Souza',
+              sector: u.sector || 'UTI Adulto',
               isAdmin: true
             };
           }
@@ -79,12 +100,12 @@ export const simulateLogin = async (cpf: string): Promise<User | null> => {
   try {
     // Attempt fetching the freshest list from Supabase
     const users = await dbGetUsers();
-    const user = users.find((u) => u.cpf.replace(/\D/g, '') === cleanCpfInput);
+    const user = users.find((u) => u && typeof u === 'object' && u.cpf && typeof u.cpf === 'string' && u.cpf.replace(/\D/g, '') === cleanCpfInput);
     return user ? JSON.parse(JSON.stringify(user)) : null;
   } catch (err) {
     console.warn("CPF lookup falling back to local list:", err);
     const users = getStoredUsers();
-    const user = users.find((u) => u.cpf.replace(/\D/g, '') === cleanCpfInput);
+    const user = users.find((u) => u && typeof u === 'object' && u.cpf && typeof u.cpf === 'string' && u.cpf.replace(/\D/g, '') === cleanCpfInput);
     return user ? JSON.parse(JSON.stringify(user)) : null;
   }
 };
