@@ -75,15 +75,16 @@ export const formatCPF = (value: string) => {
 };
 
 export const simulateLogin = async (cpf: string): Promise<User | null> => {
+  const cleanCpfInput = cpf.replace(/\D/g, '');
   try {
     // Attempt fetching the freshest list from Supabase
     const users = await dbGetUsers();
-    const user = users.find((u) => u.cpf === cpf);
+    const user = users.find((u) => u.cpf.replace(/\D/g, '') === cleanCpfInput);
     return user ? JSON.parse(JSON.stringify(user)) : null;
   } catch (err) {
     console.warn("CPF lookup falling back to local list:", err);
     const users = getStoredUsers();
-    const user = users.find((u) => u.cpf === cpf);
+    const user = users.find((u) => u.cpf.replace(/\D/g, '') === cleanCpfInput);
     return user ? JSON.parse(JSON.stringify(user)) : null;
   }
 };

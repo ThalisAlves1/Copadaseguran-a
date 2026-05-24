@@ -40,8 +40,9 @@ export default function App() {
   useEffect(() => {
     if (user) {
       const users = getStoredUsers();
-      const updatedUsers = users.map(u => u.cpf === user.cpf ? user : u);
-      if (!updatedUsers.some(u => u.cpf === user.cpf)) {
+      const cleanUserCpf = user.cpf.replace(/\D/g, '');
+      const updatedUsers = users.map(u => u.cpf.replace(/\D/g, '') === cleanUserCpf ? { ...user, cpf: u.cpf } : u);
+      if (!updatedUsers.some(u => u.cpf.replace(/\D/g, '') === cleanUserCpf)) {
         updatedUsers.push(user);
       }
       saveStoredUsers(updatedUsers);
