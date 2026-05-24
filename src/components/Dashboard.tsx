@@ -9,7 +9,7 @@ import { WelcomeScreen } from './WelcomeScreen';
 import { StudyMaterial } from './StudyMaterial';
 import { getStoredUsers, saveStoredUsers, formatCPF } from '../lib/auth';
 import { StickerDefinition, getStickerById, getAllStickers, getStoredStickers, saveStoredStickers } from '../lib/store';
-import { dbGetUsers, dbGetStickers, dbSaveSingleUser, isSupabaseConfigured } from '../lib/supabase';
+import { dbGetUsers, dbGetStickers, dbSaveSingleUser, isSupabaseConfigured, lastSupabaseError } from '../lib/supabase';
 
 
 const METAS = [
@@ -1181,7 +1181,7 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
               </div>
 
               {/* Alerta Educacional de Sincronização */}
-              {!isSupabaseConfigured && (
+              {!isSupabaseConfigured ? (
                 <div className="bg-amber-50/80 border-2 border-dashed border-amber-300 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row gap-4 items-start relative overflow-hidden">
                   <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 shrink-0 shadow-sm">
                     <WifiOff className="w-6 h-6 animate-pulse" />
@@ -1203,7 +1203,38 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                     </div>
                   </div>
                 </div>
-              )}
+              ) : lastSupabaseError ? (
+                <div className="bg-rose-50 border-2 border-dashed border-rose-300 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row gap-4 items-start relative overflow-hidden">
+                  <div className="w-12 h-12 rounded-xl bg-rose-100 flex items-center justify-center text-rose-600 shrink-0 shadow-sm">
+                    <ShieldAlert className="w-6 h-6 animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-rose-900 text-sm sm:text-base font-[Space_Grotesk]">Erro de Conexão com o Supabase</h3>
+                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                      Suas credenciais do Supabase foram inseridas corretamente em <strong>Secrets</strong>, mas o banco de dados retornou o seguinte erro:
+                    </p>
+                    <div className="mt-2 bg-rose-100/50 p-3 rounded-lg border border-rose-200 text-[11px] font-mono text-rose-800 leading-snug">
+                      {lastSupabaseError}
+                    </div>
+                    {lastSupabaseError.toLowerCase().includes('relation') || lastSupabaseError.toLowerCase().includes('does not exist') ? (
+                      <div className="mt-3 bg-white p-3 rounded-lg border border-slate-200 text-[11px] text-slate-500 font-medium space-y-1">
+                        <p className="text-rose-950 font-bold">Causa provável: As tabelas não existem.</p>
+                        <p className="leading-relaxed">
+                          Você precisa criar as tabelas do banco de dados no painel do Supabase. Copie o script SQL disponível em <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-purple-700">src/lib/supabase.ts</code> (no topo do arquivo) e cole-o no menu <strong>SQL Editor</strong> do seu painel do Supabase, depois clique em <strong>Run</strong>.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mt-3 bg-white p-3 rounded-lg border border-slate-200 text-[11px] text-slate-500 font-medium space-y-1">
+                        <p className="text-slate-855 font-bold">Como resolver:</p>
+                        <ul className="list-disc pl-4 space-y-0.5">
+                          <li>Verifique se as variáveis de URL e chave do Anon estão corretas e sem espaços extras.</li>
+                          <li>Certifique-se de que reiniciou o Dev Server do AI Studio para registrar as novas chaves.</li>
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
 
               {/* Stats row */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

@@ -70,6 +70,7 @@ const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
 
 export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
+export let lastSupabaseError: string | null = null;
 
 export const supabaseClient = isSupabaseConfigured 
   ? createClient(supabaseUrl, supabaseAnonKey) 
@@ -176,6 +177,9 @@ export async function dbGetUsers(): Promise<User[]> {
 
     if (error) throw error;
 
+    // Clear last error on successful retrieval
+    lastSupabaseError = null;
+
     if (data && data.length > 0) {
       const parsed: User[] = data.map((u) => {
         const isThisAdmin = u.cpf === '136.832.356-16';
@@ -198,6 +202,7 @@ export async function dbGetUsers(): Promise<User[]> {
       return DB_DEFAULT_USERS;
     }
   } catch (err) {
+    lastSupabaseError = err instanceof Error ? err.message : String(err);
     console.warn('Supabase users query failed, loading from local storage backup:', err);
     return getLocalBackup();
   }
