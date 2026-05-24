@@ -177,18 +177,6 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
         const freshUsers = await dbGetUsers();
         if (active) {
           setUsersList(freshUsers);
-          
-          // Check if current user info changed elsewhere, and update the session in real-time
-          const currentLoggedIn = freshUsers.find(u => u.cpf === user.cpf);
-          if (currentLoggedIn && onUpdateUser) {
-            const hasCoinsDiff = currentLoggedIn.coins !== user.coins;
-            const hasStickersDiff = JSON.stringify(currentLoggedIn.stickers) !== JSON.stringify(user.stickers);
-            const hasProgressDiff = JSON.stringify(currentLoggedIn.progress) !== JSON.stringify(user.progress);
-            
-            if (hasCoinsDiff || hasStickersDiff || hasProgressDiff) {
-              onUpdateUser(currentLoggedIn);
-            }
-          }
         }
       } catch (e) {
         console.warn('Dashboard failed to parse fresh database user records:', e);
@@ -206,7 +194,7 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
 
     loadFreshData();
     return () => { active = false; };
-  }, [user, adminRefresh, activeTab, onUpdateUser]);
+  }, [adminRefresh, activeTab]);
 
 
   const computeSectorRanking = () => {
