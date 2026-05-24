@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { ShieldCheck, ArrowRight, Loader2, Building2, UserCheck, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, ArrowRight, Loader2, Building2, UserCheck, ArrowLeft, Wifi, WifiOff } from 'lucide-react';
 import { formatCPF, simulateLogin } from '../lib/auth';
 import { User } from '../types';
+import { isSupabaseConfigured } from '../lib/supabase';
 
 interface LoginProps {
   onLoginSuccess: (user: User) => void;
@@ -188,6 +189,33 @@ export function Login({ onLoginSuccess }: LoginProps) {
               </form>
             </>
           )}
+
+          <div className="mt-8 pt-5 border-t border-slate-100">
+            {isSupabaseConfigured ? (
+              <div className="flex items-start gap-2.5 bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 w-full text-[13px] text-slate-700">
+                <Wifi className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-emerald-900">Banco de Dados Ativo • Nuvem Sync</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                    Tudo sincronizado em tempo real entre o computador, celular e outros aparelhos de forma colaborativa!
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2.5 bg-amber-50/70 p-4 rounded-2xl border border-amber-200/60 w-full text-[13px] text-slate-800">
+                <WifiOff className="w-5 h-5 text-amber-500 shrink-0 mt-0.5 animate-pulse" />
+                <div>
+                  <p className="font-bold text-amber-900">Modo Demonstrativo • Redundância Local</p>
+                  <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                    Você está em modo local offline. Novos colaboradores adicionados neste PC ficam guardados <strong>apenas neste navegador</strong> e não aparecem no celular.
+                  </p>
+                  <p className="text-[10px] text-brand-600 font-bold mt-1.5 bg-brand-50 hover:bg-brand-100 transition-colors px-2 py-1 rounded inline-block">
+                    Dica: Insira suas chaves do Supabase na aba "Secrets" para sincronizar com o Celular.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </motion.div>
     </div>

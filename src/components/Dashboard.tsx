@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Home, LogOut, CheckCircle2, Building2, PlayCircle, Trophy, ShoppingBag, Coins, LayoutGrid, UserCheck, MessageSquare, Pill, Stethoscope, Droplets, ShieldAlert, ArrowLeft, BookOpen, Crown, User as UserIcon, AlertCircle, Zap, ArrowRightLeft, Search, ShieldCheck, Award, UserPlus, Trash2, Lock, Unlock, Upload, Image } from 'lucide-react';
+import { Home, LogOut, CheckCircle2, Building2, PlayCircle, Trophy, ShoppingBag, Coins, LayoutGrid, UserCheck, MessageSquare, Pill, Stethoscope, Droplets, ShieldAlert, ArrowLeft, BookOpen, Crown, User as UserIcon, AlertCircle, Zap, ArrowRightLeft, Search, ShieldCheck, Award, UserPlus, Trash2, Lock, Unlock, Upload, Image, Database, Wifi, WifiOff } from 'lucide-react';
 import { User, MetaProgress } from '../types';
 import { Store } from './Store';
 import { Quiz } from './Quiz';
@@ -9,7 +9,7 @@ import { WelcomeScreen } from './WelcomeScreen';
 import { StudyMaterial } from './StudyMaterial';
 import { getStoredUsers, saveStoredUsers, formatCPF } from '../lib/auth';
 import { StickerDefinition, getStickerById, getAllStickers, getStoredStickers, saveStoredStickers } from '../lib/store';
-import { dbGetUsers, dbGetStickers, dbSaveSingleUser } from '../lib/supabase';
+import { dbGetUsers, dbGetStickers, dbSaveSingleUser, isSupabaseConfigured } from '../lib/supabase';
 
 
 const METAS = [
@@ -1175,10 +1175,35 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                   </span>
                   <h1 className="text-3xl font-black font-[Space_Grotesk] tracking-tight mb-2">Painel de Gestão da Qualidade HUSF</h1>
                   <p className="text-purple-100 max-w-2xl leading-relaxed text-sm">
-                    Espaço administrativo exclusivo para auditorias e testes de usabilidade. Gerencie moedas dos colaboradores, libere figurinhas para homologação rápida e visualize relatórios de desempenho operacional por metas.
+                    Espaço administrative exclusivo para auditorias e testes de usabilidade. Gerencie moedas dos colaboradores, libere figurinhas para homologação rápida e visualize relatórios de desempenho operacional por metas.
                   </p>
                 </div>
               </div>
+
+              {/* Alerta Educacional de Sincronização */}
+              {!isSupabaseConfigured && (
+                <div className="bg-amber-50/80 border-2 border-dashed border-amber-300 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row gap-4 items-start relative overflow-hidden">
+                  <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 shrink-0 shadow-sm">
+                    <WifiOff className="w-6 h-6 animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-amber-900 text-sm sm:text-base font-[Space_Grotesk]">Aviso de Sincronização: Rodando em Modo Local (Offline)</h3>
+                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                      Atualmente o aplicativo está rodando em <strong>Modo Local (Offline)</strong> porque o banco de dados em nuvem Supabase não foi configurado. 
+                      Isso causa a <strong>divergência</strong> que você notou: os colaboradores cadastrados por você neste navegador <strong>ficam guardados apenas no cache deste PC</strong> e por isso não aparecem quando você abre o link no celular!
+                    </p>
+                    <div className="mt-3 bg-white p-3 rounded-lg border border-amber-200 text-[11px] text-slate-500 font-semibold space-y-1">
+                      <p className="text-amber-850 font-bold">Como resolver e habilitar a sincronização automática em tempo real:</p>
+                      <ol className="list-decimal pl-4 space-y-0.5">
+                        <li>Abra a aba <strong>Settings (Configurações)</strong> na barra lateral esquerda da sua plataforma AI Studio.</li>
+                        <li>Clique na seção de <strong>Secrets (Segredos)</strong>.</li>
+                        <li>Adicione as duas variáveis: <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-purple-700">VITE_SUPABASE_URL</code> e <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-purple-700">VITE_SUPABASE_ANON_KEY</code> com as credenciais do seu projeto Supabase.</li>
+                        <li>Com as variáveis salvas, todo cadastro feito no PC aparecerá instantaneamente no Celular!</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Stats row */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1213,13 +1238,21 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                   <p className="text-[10px] text-emerald-500 font-semibold">Departamentos monitorados</p>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 space-y-1">
+                <div className={`p-5 rounded-2xl shadow-sm border space-y-1 ${isSupabaseConfigured ? 'bg-emerald-50/25 border-emerald-100' : 'bg-amber-50/20 border-amber-100'}`}>
                   <div className="flex justify-between items-center text-slate-400">
-                    <span className="text-xs font-bold uppercase tracking-wide">Suporte Interno</span>
-                    <ShieldCheck className="w-5 h-5 text-purple-500" />
+                    <span className="text-xs font-bold uppercase tracking-wide">Banco de Dados</span>
+                    {isSupabaseConfigured ? (
+                      <Wifi className="w-4.5 h-4.5 text-emerald-500" />
+                    ) : (
+                      <WifiOff className="w-4.5 h-4.5 text-amber-500" />
+                    )}
                   </div>
-                  <p className="text-2xl font-black text-slate-800 font-[Space_Grotesk]">Ativo</p>
-                  <p className="text-[10px] text-purple-500 font-semibold">Homologação de layouts</p>
+                  <p className={`text-2xl font-black font-[Space_Grotesk] ${isSupabaseConfigured ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {isSupabaseConfigured ? 'Nuvem Sync' : 'Offline'}
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-medium">
+                    {isSupabaseConfigured ? 'Dados em tempo real' : 'Local (este navegador)'}
+                  </p>
                 </div>
               </div>
 
