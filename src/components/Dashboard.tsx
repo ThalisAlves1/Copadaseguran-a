@@ -9,7 +9,7 @@ import { WelcomeScreen } from './WelcomeScreen';
 import { StudyMaterial } from './StudyMaterial';
 import { getStoredUsers, saveStoredUsers, formatCPF } from '../lib/auth';
 import { StickerDefinition, getStickerById, getAllStickers, getStoredStickers, saveStoredStickers } from '../lib/store';
-import { dbGetUsers, dbGetStickers, dbSaveSingleUser, isSupabaseConfigured, lastSupabaseError } from '../lib/supabase';
+import { dbGetUsers, dbGetStickers, dbSaveSingleUser, isSupabaseConfigured, lastSupabaseError, dbInsertSticker, dbDeleteSticker } from '../lib/supabase';
 
 
 const METAS = [
@@ -62,6 +62,8 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
   const [stickerError, setStickerError] = useState('');
   const [stickerSuccess, setStickerSuccess] = useState('');
   const [stickerSearch, setStickerSearch] = useState('');
+  const [isCreatingSticker, setIsCreatingSticker] = useState(false);
+  const [isDeletingStickerId, setIsDeletingStickerId] = useState<number | null>(null);
 
   const handleStickerFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -82,7 +84,7 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
     reader.readAsDataURL(file);
   };
 
-  const handleCreateSticker = (e: React.FormEvent) => {
+  const handleCreateSticker = async (e: React.FormEvent) => {
     e.preventDefault();
     setStickerError('');
     setStickerSuccess('');
@@ -93,33 +95,112 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
       return;
     }
 
-    const currentCatalog = getStoredStickers();
-    const nextId = currentCatalog.length > 0 ? Math.max(...currentCatalog.map(s => s.id)) + 1 : 1;
+    setIsCreatingSticker(true);
+    try {
+      const currentCatalog = getStoredStickers();
+      const nextId = currentCatalog.length > 0 ? Math.max(...currentCatalog.map(s => s.id)) + 1 : 1;
 
-    const newSticker: StickerDefinition = {
-      id: nextId,
-      name,
-      rarity: newStickerRarity,
-      image: newStickerImage.trim() || undefined
-    };
+      const newSticker: StickerDefinition = {
+        id: nextId,
+        name,
+        rarity: newStickerRarity,
+        image: newStickerImage.trim() || undefined
+      };
 
-    const updated = [...currentCatalog, newSticker];
-    saveStoredStickers(updated);
-    setStickerRefresh(prev => prev + 1);
-    setNewStickerName('');
-    setNewStickerImage('');
-    // Reset file input if exists (handled implicitly by re-rendering / state reset)
-    setStickerSuccess(`Figurinha "#${nextId} - ${name}" cadastrada com sucesso!`);
-    setTimeout(() => setStickerSuccess(''), 5000);
+      await dbInsertSticker(newSticker);
+      setStickerRefresh(prev => prev + 1);
+      setNewStickerName('');
+      setNewStickerImage('');
+      setStickerSuccess(`Figurinha "#${nextId} - ${name}" cadastrada com sucesso!`);
+      setTimeout(() => setStickerSuccess(''), 5000);
+    } catch (err: any) {
+      console.error(err);
+      setStickerError(`Erro ao sincronizar figurinha na nuvem: ${err.message || 'Verifique sua conexão ou tente usar uma imagem menor.'}`);
+    } finally {
+      setIsCreatingSticker(false);
+    }
   };
 
-  const handleDeleteSticker = (id: number) => {
-    const currentCatalog = getStoredStickers();
-    const updated = currentCatalog.filter(s => s.id !== id);
-    saveStoredStickers(updated);
-    setStickerRefresh(prev => prev + 1);
-    setStickerSuccess(`Figurinha deletada com sucesso do catálogo de compras.`);
-    setTimeout(() => setStickerSuccess(''), 5000);
+  const handleDeleteSticker = async (id: number) => {
+    setIsDeletingStickerId(id);
+    setStickerError('');
+    setStickerSuccess('');
+    try {
+      await dbDeleteSticker(id);
+      setStickerRefresh(prev => prev + 1);
+      setStickerSuccess(`Figurinha deletada com sucesso do catálogo de compras.`);
+      setTimeout(() => setStickerSuccess(''), 5000);
+    } catch (err: any) {
+      console.error(err);
+      setStickerError(`Erro ao deletar figurinha na nuvem: ${err.message || err}`);
+    } finally {
+      setIsDeletingStickerId(null);
+    }
+  };
+
+  const [buyingStickerDirectly, setBuyingStickerDirectly] = useState<StickerDefinition | null>(null);
+  const [directBuyError, setDirectBuyError] = useState('');
+  const [directBuySuccess, setDirectBuySuccess] = useState('');
+
+  const getDirectStickerPrice = (rarity: string) => {
+    switch (rarity) {
+      case 'regular': return 20;
+      case 'holografica': return 40;
+      case 'lendaria': return 75;
+      case 'suprema': return 120;
+      default: return 20;
+    }
+  };
+
+  const handleConfirmDirectBuySticker = () => {
+    if (!user || !buyingStickerDirectly) return;
+    setDirectBuyError('');
+    setDirectBuySuccess('');
+
+    const price = getDirectStickerPrice(buyingStickerDirectly.rarity);
+    if (user.coins < price) {
+      setDirectBuyError('Você não possui moedas suficientes para adquirir este cromo diretamente.');
+      return;
+    }
+
+    if (onUpdateUser) {
+      onUpdateUser({
+        ...user,
+        coins: user.coins - price,
+        stickers: [...user.stickers, buyingStickerDirectly.id]
+      });
+      setDirectBuySuccess('Cromo adicionado ao seu álbum com sucesso!');
+      setTimeout(() => {
+        setBuyingStickerDirectly(null);
+        setDirectBuySuccess('');
+      }, 1500);
+    }
+  };
+
+  const handleGiftSticker = (targetCpf: string, stickerId: number) => {
+    const currentUsers = getStoredUsers();
+    let stickerName = `Figurinha #${stickerId}`;
+    const foundSticker = getStickerById(stickerId);
+    if (foundSticker) {
+      stickerName = `"${foundSticker.name}"`;
+    }
+    const updated = currentUsers.map(u => {
+      if (u.cpf === targetCpf) {
+        const stickers = u.stickers || [];
+        return { ...u, stickers: [...stickers, stickerId] };
+      }
+      return u;
+    });
+    saveStoredUsers(updated);
+    setUsersList(updated);
+    
+    if (targetCpf === user.cpf && onUpdateUser) {
+      onUpdateUser({ ...user, stickers: [...(user.stickers || []), stickerId] });
+    }
+    
+    setAdminRefresh(prev => prev + 1);
+    setNewRegSuccess(`Sucesso! A figurinha ${stickerName} foi adicionada ao inventário do colaborador.`);
+    setTimeout(() => setNewRegSuccess(''), 4000);
   };
 
   // States for bulk/mass registration
@@ -940,14 +1021,22 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                               );
                             } else {
                               return (
-                                <div key={`${sticker.id}-${i}`} className={`w-full aspect-[2.5/3.5] max-w-[140px] flex flex-col items-center justify-center p-1 text-center relative overflow-hidden group border-2 ${group.bgColor}`}>
+                                <div 
+                                  key={`${sticker.id}-${i}`} 
+                                  onClick={() => setBuyingStickerDirectly(sticker)}
+                                  className={`w-full aspect-[2.5/3.5] max-w-[140px] flex flex-col items-center justify-center p-1 text-center relative overflow-hidden group border-2 ${group.bgColor} cursor-pointer hover:border-brand-500 hover:scale-[1.03] transition-all hover:shadow-md`}
+                                  title="Clique para obter esta figurinha directamente por moedas"
+                                >
                                   <div className="absolute inset-x-0 inset-y-0 bg-white/20"></div>
                                   <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
                                        <span className={`text-[80px] xs:text-[100px] leading-none font-black font-[Space_Grotesk] tracking-tight group-hover:scale-110 transition-transform select-none ${group.numColor}`}>{sticker.id}</span>
                                   </div>
-                                  <div className="mt-auto mb-2 relative z-10 w-full px-1.5">
-                                       <div className="bg-white/80 py-1.5 rounded-sm backdrop-blur-sm shadow-sm">
+                                  <div className="mt-auto mb-2 relative z-10 w-full px-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
+                                       <div className="bg-white/95 py-1.5 rounded-sm backdrop-blur-xs shadow-sm flex flex-col items-center gap-0.5">
                                          <span className="font-bold text-[9px] sm:text-[10px] uppercase tracking-widest text-slate-700 line-clamp-1 truncate block px-1">{sticker.name}</span>
+                                         <span className="text-[8px] font-extrabold text-amber-600 bg-amber-50 px-1 py-0.5 rounded flex items-center gap-0.5">
+                                           {getDirectStickerPrice(sticker.rarity)} <Coins className="w-2.5 h-2.5 text-amber-500" />
+                                         </span>
                                        </div>
                                   </div>
                                 </div>
@@ -960,6 +1049,90 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                   ))
                 )}
               </div>
+
+              {/* Direct Purchase Modal */}
+              <AnimatePresence>
+                {buyingStickerDirectly && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4 text-center"
+                  >
+                    <motion.div
+                      initial={{ scale: 0.95, y: 15 }}
+                      animate={{ scale: 1, y: 0 }}
+                      exit={{ scale: 0.95, y: 15 }}
+                      className="bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-sm w-full relative overflow-hidden flex flex-col items-center"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setBuyingStickerDirectly(null)}
+                        className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer"
+                      >
+                        ✕
+                      </button>
+
+                      <div className="mb-4 inline-flex items-center justify-center w-14 h-14 rounded-full bg-amber-50 border border-amber-200 text-amber-500">
+                        <Coins className="w-8 h-8 animate-bounce" />
+                      </div>
+
+                      <h3 className="text-lg font-extrabold text-slate-800 font-[Space_Grotesk] mb-2">
+                        Adquirir Cromo Direto
+                      </h3>
+
+                      <p className="text-slate-500 text-xs mb-4">
+                        Deseja gastar suas moedas para colar a figurinha <span className="font-bold text-slate-800">#{buyingStickerDirectly.id} - "{buyingStickerDirectly.name}"</span> diretamente em seu Álbum sem precisar de sorte?
+                      </p>
+
+                      <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-6 w-full">
+                        <div className="flex justify-between text-xs text-slate-500 font-bold uppercase mb-2">
+                          <span>Seu Saldo:</span>
+                          <span className="text-slate-800 flex items-center gap-1">
+                            {user.coins} <Coins className="w-3.5 h-3.5 text-amber-500" />
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-xs font-bold uppercase border-t border-slate-200/60 pt-2">
+                          <span className="text-brand-700">Preço do Cromo ({buyingStickerDirectly.rarity}):</span>
+                          <span className="text-amber-600 flex items-center gap-1 text-sm font-black">
+                            {getDirectStickerPrice(buyingStickerDirectly.rarity)} <Coins className="w-4 h-4 text-amber-500" />
+                          </span>
+                        </div>
+                      </div>
+
+                      {directBuyError && (
+                        <div className="mb-4 text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-100 p-2.5 rounded-xl w-full">
+                          {directBuyError}
+                        </div>
+                      )}
+
+                      {directBuySuccess && (
+                        <div className="mb-4 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 p-2.5 rounded-xl w-full">
+                          {directBuySuccess}
+                        </div>
+                      )}
+
+                      <div className="flex gap-3 w-full">
+                        <button
+                          type="button"
+                          onClick={() => setBuyingStickerDirectly(null)}
+                          className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold py-3 px-4 rounded-xl transition-all cursor-pointer"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleConfirmDirectBuySticker}
+                          disabled={user.coins < getDirectStickerPrice(buyingStickerDirectly.rarity)}
+                          className={`flex-1 text-white text-xs font-bold py-3 px-4 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer ${user.coins >= getDirectStickerPrice(buyingStickerDirectly.rarity) ? 'bg-amber-500 hover:bg-amber-600' : 'bg-slate-300 cursor-not-allowed opacity-85'}`}
+                        >
+                          Confirmar e Colar
+                        </button>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           )}
 
@@ -1848,9 +2021,10 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
 
                         <button 
                           type="submit"
-                          className="w-full bg-gradient-to-r from-purple-600 to-indigo-700 text-white font-extrabold uppercase text-xs tracking-wider py-3 rounded-xl shadow-xs hover:from-purple-700 hover:to-indigo-800 transition-all cursor-pointer active:scale-95"
+                          disabled={isCreatingSticker}
+                          className={`w-full text-white font-extrabold uppercase text-xs tracking-wider py-3 rounded-xl shadow-xs transition-colors cursor-pointer active:scale-95 ${isCreatingSticker ? 'bg-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-700 hover:to-indigo-800'}`}
                         >
-                          Adicionar Figurinha
+                          {isCreatingSticker ? 'Sincronizando...' : 'Adicionar Figurinha'}
                         </button>
                       </form>
                     </div>
@@ -1917,16 +2091,17 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                                   <td className="py-3 px-4 text-right">
                                     <button
                                       type="button"
+                                      disabled={isDeletingStickerId !== null}
                                       onClick={() => {
                                         if (confirm(`Tem certeza de que deseja remover a figurinha "${st.name}"? Isso a removerá do álbum e dos futuros pacotes abertos.`)) {
                                           handleDeleteSticker(st.id);
                                         }
                                       }}
-                                      className="p-1 px-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer active:scale-90 font-bold border-none"
+                                      className={`p-1 px-2 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer active:scale-90 font-bold border-none ${isDeletingStickerId === st.id ? 'text-slate-400 bg-slate-150 cursor-not-allowed animate-pulse' : 'text-rose-600 hover:bg-rose-50'}`}
                                       title="Remover do catálogo"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
-                                      Remover
+                                      {isDeletingStickerId === st.id ? 'Removendo...' : 'Remover'}
                                     </button>
                                   </td>
                                 </tr>
@@ -2044,6 +2219,26 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                               >
                                 +500
                               </button>
+
+                              {/* Gift sticker select dropdown */}
+                              <select
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val) {
+                                    handleGiftSticker(u.cpf, parseInt(val));
+                                    e.target.value = ''; // Reset select
+                                  }
+                                }}
+                                className="text-[10px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg px-1.5 py-1.5 border border-indigo-150 outline-none cursor-pointer max-w-[110px]"
+                                defaultValue=""
+                              >
+                                <option value="" disabled>🎁 Dar Figurinha</option>
+                                {allStickersCatalog.map(st => (
+                                  <option key={st.id} value={st.id}>
+                                    #{st.id} - {st.name}
+                                  </option>
+                                ))}
+                              </select>
 
                               {/* Persistent state-based confirmation delete link */}
                               {confirmDeleteCpf === u.cpf ? (
