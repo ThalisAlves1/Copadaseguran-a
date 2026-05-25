@@ -5,6 +5,7 @@ export interface StickerDefinition {
   name: string;
   rarity: StickerRarity;
   image?: string;
+  page?: 'trabalho' | 'evolucao' | 'hall';
 }
 
 import { dbSaveWholeCatalog, DB_DEFAULT_STICKERS } from './supabase';
@@ -14,14 +15,26 @@ export function getStoredStickers(): StickerDefinition[] {
   const data = localStorage.getItem('husf_sticker_catalog');
   if (data) {
     try {
-      return JSON.parse(data);
+      const parsed = JSON.parse(data) as StickerDefinition[];
+      return parsed.map(s => {
+        if (!s.page) {
+          if (s.id >= 1 && s.id <= 6) s.page = 'trabalho';
+          else if (s.id >= 7 && s.id <= 12) s.page = 'evolucao';
+          else s.page = 'hall';
+        }
+        return s;
+      });
     } catch {
       // Use defaults
     }
   }
 
-  localStorage.setItem('husf_sticker_catalog', JSON.stringify(DB_DEFAULT_STICKERS));
-  return DB_DEFAULT_STICKERS;
+  const seeded: StickerDefinition[] = DB_DEFAULT_STICKERS.map(s => {
+    const page: 'trabalho' | 'evolucao' | 'hall' = s.id >= 1 && s.id <= 6 ? 'trabalho' : s.id >= 7 && s.id <= 12 ? 'evolucao' : 'hall';
+    return { ...s, page };
+  });
+  localStorage.setItem('husf_sticker_catalog', JSON.stringify(seeded));
+  return seeded;
 }
 
 // Save stickers collection to localStorage
