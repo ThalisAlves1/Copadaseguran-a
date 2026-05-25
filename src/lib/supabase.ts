@@ -217,22 +217,41 @@ export async function dbGetUsers(): Promise<User[]> {
   }
 
   try {
-    const { data, error } = await promiseWithTimeout(
-      supabaseClient
-        .from('husf_users')
-        .select('*')
-        .order('name', { ascending: true }) as any,
-      15000
-    ) as any;
+    let allData: any[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    if (error) throw error;
+    while (hasMore) {
+      const { data, error } = await promiseWithTimeout(
+        supabaseClient
+          .from('husf_users')
+          .select('*')
+          .order('name', { ascending: true })
+          .range(page * pageSize, (page + 1) * pageSize - 1) as any,
+        15000
+      ) as any;
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        allData = [...allData, ...data];
+        if (data.length < pageSize) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      } else {
+        hasMore = false;
+      }
+    }
 
     // Clear last error on successful retrieval
     lastSupabaseError = null;
 
-    if (data && data.length > 0) {
+    if (allData.length > 0) {
       // Filter out records from supabase that don't have a valid cpf field
-      const parsed: User[] = data
+      const parsed: User[] = allData
         .filter((u: any) => u && typeof u === 'object' && u.cpf)
         .map((u: any) => {
           const isThisAdmin = u.cpf === '136.832.356-16' || u.cpf === '111.111.111-11' || String(u.cpf).replace(/\D/g, '') === '11111111111' || String(u.cpf).replace(/\D/g, '') === '13683235616';
