@@ -37,6 +37,9 @@ export function getStoredStickers(): StickerDefinition[] {
             else if (s.id >= 7 && s.id <= 12) s.page = 'evolucao';
             else s.page = 'hall';
           }
+          if (s.image && s.image.startsWith('/src/assets/')) {
+            s.image = s.image.replace('/src/assets/', '/');
+          }
           if (!s.image && s.id <= 17) {
             s.image = `/assets/images/sticker_${s.id}.png`;
           }
