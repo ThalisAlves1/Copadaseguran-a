@@ -201,6 +201,7 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
   const computeSectorRanking = () => {
     const sectorMap: Record<string, { totalCoins: number, memberCount: number, totalQuizCoins: number }> = {};
     usersList.forEach(u => {
+      if (u.isAdmin) return; // Excluir administradores da pontuação de setores
       if (!sectorMap[u.sector]) {
         sectorMap[u.sector] = { totalCoins: 0, memberCount: 0, totalQuizCoins: 0 };
       }
@@ -1008,7 +1009,7 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
               <div className="p-4 md:p-6 flex-1 overflow-y-auto">
                 {rankingTab === 'individual' ? (
                   <div className="flex flex-col gap-3">
-                    {[...usersList].sort((a, b) => b.coins - a.coins).map((rankedUser, index) => (
+                    {[...usersList].filter(u => !u.isAdmin).sort((a, b) => b.coins - a.coins).map((rankedUser, index) => (
                       <div key={rankedUser.cpf} className={`flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl border ${index === 0 ? 'bg-amber-50 border-amber-200' : index === 1 ? 'bg-slate-50 border-slate-200' : index === 2 ? 'bg-orange-50 border-orange-200' : 'bg-white border-slate-100'}`}>
                         <div className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center font-bold text-sm sm:text-lg rounded-full shrink-0 ${index === 0 ? 'bg-amber-400 text-white shadow-md' : index === 1 ? 'bg-slate-300 text-slate-700 shadow-sm' : index === 2 ? 'bg-orange-300 text-orange-800 shadow-sm' : 'bg-slate-100 text-slate-500'}`}>
                           {index + 1}
