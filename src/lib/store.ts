@@ -15,13 +15,13 @@ export const STATIC_STICKERS: StickerDefinition[] = [
     name: `Figurinha Meta ${(i % 6) + 1} - #${i + 1}`,
     rarity: 'regular' as StickerRarity,
     page: (i < 6 ? 'trabalho' : 'evolucao') as 'trabalho' | 'evolucao' | 'hall',
-    image: `/src/assets/images/sticker_${i + 1}.png`
+    image: `/assets/images/sticker_${i + 1}.png`
   })),
-  { id: 13, name: 'Celso Paredão', rarity: 'holografica', page: 'hall', image: '/src/assets/images/sticker_13.png' },
-  { id: 14, name: 'Speak Up', rarity: 'holografica', page: 'hall', image: '/src/assets/images/sticker_14.png' },
-  { id: 15, name: 'Lampião', rarity: 'lendaria', page: 'hall', image: '/src/assets/images/sticker_15.png' },
-  { id: 16, name: 'Mãos Limpas', rarity: 'lendaria', page: 'hall', image: '/src/assets/images/sticker_16.png' },
-  { id: 17, name: 'Suprema Bola de Ouro', rarity: 'suprema', page: 'hall', image: '/src/assets/images/sticker_17.png' }
+  { id: 13, name: 'Celso Paredão', rarity: 'holografica', page: 'hall', image: '/assets/images/sticker_13.png' },
+  { id: 14, name: 'Speak Up', rarity: 'holografica', page: 'hall', image: '/assets/images/sticker_14.png' },
+  { id: 15, name: 'Lampião', rarity: 'lendaria', page: 'hall', image: '/assets/images/sticker_15.png' },
+  { id: 16, name: 'Mãos Limpas', rarity: 'lendaria', page: 'hall', image: '/assets/images/sticker_16.png' },
+  { id: 17, name: 'Suprema Bola de Ouro', rarity: 'suprema', page: 'hall', image: '/assets/images/sticker_17.png' }
 ];
 
 // Get stickers from localStorage, with predefined initial values
@@ -38,7 +38,7 @@ export function getStoredStickers(): StickerDefinition[] {
             else s.page = 'hall';
           }
           if (!s.image && s.id <= 17) {
-            s.image = `/src/assets/images/sticker_${s.id}.png`;
+            s.image = `/assets/images/sticker_${s.id}.png`;
           }
           return s;
         });
@@ -68,7 +68,7 @@ export function saveStoredStickers(stickers: StickerDefinition[]) {
       const { image, ...sWithoutImg } = s;
       // Keep static references only, custom uploaded base64 gets stripped to protect storage
       if (s.id <= 17) {
-        return { ...s, image: `/src/assets/images/sticker_${s.id}.png` };
+        return { ...s, image: `/assets/images/sticker_${s.id}.png` };
       }
       return sWithoutImg;
     });
