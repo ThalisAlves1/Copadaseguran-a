@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { ShieldCheck, ArrowRight, Loader2, Building2, UserCheck, ArrowLeft, Wifi, WifiOff } from 'lucide-react';
 import { formatCPF, simulateLogin } from '../lib/auth';
 import { User } from '../types';
-import { isSupabaseConfigured, lastSupabaseError } from '../lib/supabase';
+
 
 interface LoginProps {
   onLoginSuccess: (user: User) => void;
@@ -14,6 +14,8 @@ export function Login({ onLoginSuccess }: LoginProps) {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [validatedUser, setValidatedUser] = useState<User | null>(null);
+
+  const [showManualSync, setShowManualSync] = useState(false);
 
   const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setCpf(formatCPF(e.target.value));
@@ -45,71 +47,120 @@ export function Login({ onLoginSuccess }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50/50">
+    <div className="min-h-screen flex items-center justify-center p-4 lg:p-10 bg-[#080d15] relative overflow-hidden font-sans">
+      {/* Immersive stadium layout background effects */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#0d948810_1px,transparent_1px),linear-gradient(to_bottom,#0d948810_1px,transparent_1px)] bg-[size:3.5rem_3.5rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] pointer-events-none" />
+      
+      {/* Smooth glowing orbs mimicking stadium floodlights in the corners */}
+      <div className="absolute -top-[10%] -left-[10%] w-[45%] h-[45%] rounded-full bg-teal-500/20 blur-[120px] pointer-events-none animate-pulse" />
+      <div className="absolute -bottom-[10%] -right-[10%] w-[45%] h-[45%] rounded-full bg-emerald-500/10 blur-[120px] pointer-events-none" />
+      <div className="absolute top-[40%] left-[30%] w-[30%] h-[30%] rounded-full bg-teal-600/10 blur-[130px] pointer-events-none" />
+
       <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        initial={{ opacity: 0, scale: 0.96, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl shadow-slate-200 overflow-hidden flex flex-col lg:flex-row"
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        className="w-full max-w-5xl bg-white/95 backdrop-blur-md rounded-[32px] shadow-[0_30px_70px_rgba(0,18,15,0.45)] overflow-hidden flex flex-col lg:flex-row border border-white/20 relative z-10"
       >
-        <div className="bg-brand-600 p-8 md:p-14 lg:p-16 text-center text-white flex flex-col justify-center items-center lg:w-5/12 relative overflow-hidden">
-          {/* Decorative background element */}
-          <div className="absolute top-0 left-0 w-full h-full bg-brand-500 opacity-20 blur-3xl rounded-full translate-x-1/2 translate-y-1/2 pointer-events-none" />
-          
-          <motion.div
-            initial={{ scale: 0.8 }}
-            animate={{ scale: 1 }}
-            transition={{ type: "spring", bounce: 0.5, delay: 0.2 }}
-            className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center mb-8 relative z-10 shadow-lg"
-          >
-            <ShieldCheck className="w-12 h-12 text-white" />
-          </motion.div>
-          <h1 className="text-3xl lg:text-4xl font-bold mb-4 relative z-10 leading-tight font-[Space_Grotesk]">Segurança do Paciente</h1>
-          <p className="text-brand-50 text-lg leading-relaxed relative z-10">
-            Plataforma de Treinamento e Avaliação das 6 Metas Internacionais.
-          </p>
+        {/* Left Side: Brilliant Championship Logo Banner */}
+        <div className="bg-gradient-to-br from-[#0c2e27] via-[#0d9488] to-[#04332d] p-8 md:p-12 lg:p-14 text-center text-white flex flex-col justify-between items-center lg:w-5/12 relative overflow-hidden border-b lg:border-b-0 lg:border-r border-teal-800/20">
+          {/* Subtle grid background mask */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_20%,_#031c18_100%)] opacity-60 pointer-events-none" />
+          <div className="absolute inset-0 opacity-10 bg-[linear-gradient(45deg,#000_25%,transparent_25%),linear-gradient(-45deg,#000_25%,transparent_25%)] bg-[size:20px_20px] pointer-events-none mix-blend-overlay" />
+
+          {/* HUSF Identity Tag */}
+          <div className="relative z-10 bg-black/40 backdrop-blur-md border border-white/10 px-4 py-1.5 rounded-full text-[10px] font-extrabold tracking-widest text-teal-300 uppercase flex items-center gap-1.5 shadow-sm">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            Hospital Universitário HUSF
+          </div>
+
+          {/* Championship Logo and Title Area */}
+          <div className="my-auto py-8 flex flex-col items-center relative z-10">
+            <motion.div
+              initial={{ scale: 0.85, rotate: -4 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: "spring", stiffness: 120, damping: 14, delay: 0.15 }}
+              className="mb-8 relative"
+            >
+              {/* Radial glow directly behind the cup crown */}
+              <div className="absolute inset-0 rounded-full bg-teal-400/20 blur-3xl pointer-events-none scale-110" />
+              <img
+                src="/src/assets/images/copa_metas_logo_clean_1779667992235.png"
+                alt="Copa das Metas Shield"
+                className="w-64 h-64 md:w-80 md:h-80 lg:w-[340px] lg:h-[340px] object-contain filter drop-shadow-[0_16px_32px_rgba(0,0,0,0.5)] hover:scale-105 transition-transform duration-300 relative z-10"
+                referrerPolicy="no-referrer"
+              />
+            </motion.div>
+
+            <h1 className="text-3xl lg:text-4xl font-black mb-3.5 leading-none font-[Space_Grotesk] tracking-wider uppercase bg-gradient-to-b from-white via-slate-100 to-teal-100 bg-clip-text text-transparent filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.1)]">
+              Copa das Metas
+            </h1>
+
+            <p className="text-teal-50/80 text-sm leading-relaxed max-w-xs font-semibold">
+              Treine e domine as <span className="text-amber-300 font-bold underline decoration-amber-400/55 decoration-2 underline-offset-4">6 Metas Internacionais</span> de Segurança do Paciente no nosso grande campeonato!
+            </p>
+          </div>
+
+          {/* Bottom Accreditation Authority */}
+          <div className="relative z-10 text-[10px] text-teal-300/60 font-black tracking-widest border-t border-white/10 pt-4 w-full uppercase">
+            Diretoria de Ensino e Pesquisa
+          </div>
         </div>
 
-        <div className="p-6 sm:p-8 md:p-14 lg:p-16 lg:w-7/12 flex flex-col justify-center">
+        {/* Right Side: High-Quality Interactive Line-up Form */}
+        <div className="p-6 sm:p-10 md:p-14 lg:p-16 lg:w-7/12 flex flex-col justify-center bg-white">
           {validatedUser ? (
             <motion.div
-              initial={{ opacity: 0, x: 15 }}
+              initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
+              transition={{ type: "spring", duration: 0.4 }}
               className="space-y-6"
             >
               <div className="mb-6 text-center lg:text-left">
-                <span className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-2 inline-flex items-center gap-1.5 border border-emerald-100">
-                  <UserCheck className="w-4 h-4" />
-                  Cadastro Identificado
+                <span className="bg-emerald-50 text-emerald-800 px-3.5 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-widest mb-3.5 inline-flex items-center gap-2 border border-emerald-200 shadow-sm animate-pulse">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                  Escalação Encontrada!
                 </span>
-                <h2 className="text-3xl font-extrabold text-slate-800 mb-2 font-[Space_Grotesk]">Confirme seus Dados</h2>
-                <p className="text-slate-500 text-sm leading-relaxed">Verifique se as informações abaixo coincidem com o seu crachá profissional antes de acessar o portal de treinamento.</p>
+                <h2 className="text-3xl font-extrabold text-slate-900 mb-2 font-[Space_Grotesk] tracking-tight">Confirme sua Escalação</h2>
+                <p className="text-slate-500 text-sm leading-relaxed">
+                  Confirme seus dados profissionais abaixo para receber suas moedas e ingressar no campeonato.
+                </p>
               </div>
 
-              <div className="bg-slate-50 rounded-2xl p-6 border-2 border-dashed border-slate-200/85 space-y-4 shadow-sm">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-brand-600 text-white rounded-full flex items-center justify-center font-black text-xl shadow-md shrink-0">
+              {/* Styled as a beautiful official Match Pass / Player Card */}
+              <div className="bg-gradient-to-b from-slate-50 to-slate-100/50 rounded-2xl p-6 border border-slate-200/80 space-y-4 shadow-sm relative overflow-hidden">
+                {/* Visual texture */}
+                <div className="absolute right-0 top-0 w-32 h-32 bg-[#0d9488]/5 blur-2xl rounded-full" />
+                <div className="absolute left-0 bottom-0 w-24 h-24 bg-amber-500/5 blur-xl rounded-full" />
+
+                <div className="flex items-center gap-4 relative z-10">
+                  <div className="w-14 h-14 bg-gradient-to-tr from-teal-600 to-teal-500 text-white rounded-xl flex items-center justify-center font-black text-2xl shadow-md shadow-teal-600/15 shrink-0 border border-teal-500/20">
                     {validatedUser.name.charAt(0)}
                   </div>
                   <div>
-                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest block mb-0.5">Nome Completo</span>
-                    <h3 className="text-lg font-bold text-slate-800 font-[Space_Grotesk] leading-tight uppercase tracking-wide">{validatedUser.name}</h3>
+                    <span className="text-[9px] text-teal-600 font-extrabold uppercase tracking-widest bg-teal-50 px-2.5 py-0.5 rounded border border-teal-100 inline-block mb-1">
+                      Atleta Registrado
+                    </span>
+                    <h3 className="text-xl font-bold text-slate-800 font-[Space_Grotesk] leading-tight uppercase tracking-wide">
+                      {validatedUser.name}
+                    </h3>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200/60">
-                  <div className="flex items-start gap-2">
-                    <Building2 className="w-4 h-4 text-brand-600 mt-1 shrink-0" />
-                    <div>
-                      <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest block mb-0.5">Setor alocado</span>
-                      <p className="text-sm font-bold text-slate-700 leading-tight">{validatedUser.sector}</p>
+                <div className="grid grid-cols-2 gap-3.5 pt-4 border-t border-slate-200/50 relative z-10">
+                  <div className="bg-white/80 p-3 rounded-xl border border-slate-200/40 shadow-sm">
+                    <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest block mb-1">Setor Alocado</span>
+                    <div className="flex items-center gap-1.5 text-slate-700">
+                      <Building2 className="w-4 h-4 text-teal-600 shrink-0" />
+                      <p className="text-xs font-bold leading-none truncate">{validatedUser.sector}</p>
                     </div>
                   </div>
-                  <div className="flex items-start gap-2">
-                    <ShieldCheck className="w-4 h-4 text-brand-600 mt-1 shrink-0" />
-                    <div>
-                      <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest block mb-0.5">CPF Confirmado</span>
-                      <p className="text-sm font-mono font-bold text-slate-700 leading-tight">{validatedUser.cpf}</p>
+                  
+                  <div className="bg-white/80 p-3 rounded-xl border border-slate-200/40 shadow-sm">
+                    <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest block mb-1">Registro CPF</span>
+                    <div className="flex items-center gap-1.5 text-slate-700">
+                      <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <p className="text-xs font-mono font-bold leading-none">{validatedUser.cpf}</p>
                     </div>
                   </div>
                 </div>
@@ -117,37 +168,49 @@ export function Login({ onLoginSuccess }: LoginProps) {
 
               <div className="space-y-3 pt-2">
                 <button
+                  type="button"
                   onClick={() => onLoginSuccess(validatedUser)}
-                  className="w-full bg-brand-600 hover:bg-brand-700 active:scale-[0.99] transform text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center transition-all shadow-md shadow-brand-100 hover:shadow-brand-300 gap-2 cursor-pointer"
+                  className="w-full bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600 active:scale-[0.99] text-white font-extrabold py-4 px-6 rounded-xl flex items-center justify-center transition-all duration-200 shadow-lg shadow-teal-500/10 hover:shadow-teal-500/20 gap-2 cursor-pointer text-base uppercase tracking-wider"
                 >
-                  Sim, sou eu / Continuar
+                  Confirmar Escalação / Jogar
                   <ArrowRight className="w-5 h-5" />
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => {
                     setValidatedUser(null);
                     setCpf('');
                   }}
-                  className="w-full bg-white hover:bg-slate-50 text-slate-500 border-2 border-slate-200 text-sm font-bold py-3 px-4 rounded-xl flex items-center justify-center transition-colors gap-2 cursor-pointer"
+                  className="w-full bg-white hover:bg-slate-50 text-slate-500 border border-slate-200 text-xs font-bold py-3 px-4 rounded-xl flex items-center justify-center transition-colors gap-2 cursor-pointer hover:text-slate-700"
                 >
                   <ArrowLeft className="w-4 h-4" />
-                  Não sou eu, corrigir CPF
+                  Não sou eu, alterar CPF
                 </button>
               </div>
             </motion.div>
           ) : (
             <>
-              <div className="mb-6 text-center lg:text-left">
-                <h2 className="text-2xl font-bold text-slate-800 mb-2 font-[Space_Grotesk]">Entrar na Plataforma</h2>
-                <p className="text-slate-500 text-sm">Insira seu CPF cadastrado para acessar o ambiente de treinamento.</p>
+              <div className="mb-8 text-center lg:text-left">
+                <h2 className="text-3xl font-black text-slate-900 mb-2.5 font-[Space_Grotesk] tracking-tight">
+                  Entre em Campo
+                </h2>
+                <p className="text-slate-500 text-sm leading-relaxed">
+                  Insira o seu CPF para acessar o campeonato e iniciar a capacitação das 6 metas internacionais de segurança.
+                </p>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
-                  <label htmlFor="cpf" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                    CPF do Colaborador
-                  </label>
+                  <div className="flex justify-between items-center mb-2">
+                    <label htmlFor="cpf" className="block text-xs font-extrabold text-slate-400 uppercase tracking-widest">
+                      Seu CPF de Acesso
+                    </label>
+                    <span className="text-[10px] text-amber-600 font-extrabold uppercase tracking-wide bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+                      Cadastro Único
+                    </span>
+                  </div>
+                  
                   <div className="relative">
                     <input
                       id="cpf"
@@ -155,18 +218,22 @@ export function Login({ onLoginSuccess }: LoginProps) {
                       value={cpf}
                       onChange={handleCpfChange}
                       placeholder="000.000.000-00"
-                      className={`w-full px-5 py-4 rounded-xl border-2 focus:ring-4 focus:outline-none transition-all text-xl tracking-wider text-center lg:text-left ${
-                        error ? 'border-red-300 focus:ring-red-100 focus:border-red-500' : 'border-slate-200 focus:ring-brand-100 focus:border-brand-500'
+                      className={`w-full px-5 py-4 rounded-xl border-2 focus:ring-4 focus:outline-none transition-all duration-200 text-2xl tracking-widest text-center font-mono font-black ${
+                        error 
+                          ? 'border-red-300 focus:ring-red-100 focus:border-red-500 bg-red-50/5 text-red-700' 
+                          : 'border-slate-200 focus:ring-teal-100 focus:border-[#0d9488] bg-slate-50/30'
                       }`}
                       disabled={isLoading}
                     />
                   </div>
+                  
                   {error && (
                     <motion.p 
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
-                      className="text-red-500 text-sm mt-2 font-medium"
+                      className="text-red-500 text-xs font-bold mt-2.5 flex items-center gap-1.5 md:leading-relaxed bg-red-50 border border-red-100 px-3.5 py-2.5 rounded-lg"
                     >
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
                       {error}
                     </motion.p>
                   )}
@@ -175,63 +242,20 @@ export function Login({ onLoginSuccess }: LoginProps) {
                 <button
                   type="submit"
                   disabled={isLoading || cpf.length !== 14}
-                  className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:hover:bg-brand-600 text-white font-extrabold py-4 px-4 rounded-xl flex items-center justify-center transition-all shadow-md shadow-brand-100/50 cursor-pointer text-base"
+                  className="w-full bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600 disabled:opacity-40 disabled:from-slate-300 disabled:to-slate-300 disabled:pointer-events-none text-white font-extrabold py-4 px-4 rounded-xl flex items-center justify-center transition-all duration-200 shadow-md shadow-teal-500/10 hover:shadow-lg cursor-pointer text-base uppercase tracking-wider"
                 >
                   {isLoading ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
                     <>
-                      Procurar Meu Nome
-                      <ArrowRight className="w-5 h-5 ml-2" />
+                      Buscar Minha Ficha
+                      <ArrowRight className="w-5 h-5 ml-2.5" />
                     </>
                   )}
                 </button>
               </form>
             </>
           )}
-
-          <div className="mt-8 pt-5 border-t border-slate-100">
-            {!isSupabaseConfigured ? (
-              <div className="flex items-start gap-2.5 bg-amber-50/70 p-4 rounded-2xl border border-amber-200/60 w-full text-[13px] text-slate-800">
-                <WifiOff className="w-5 h-5 text-amber-500 shrink-0 mt-0.5 animate-pulse" />
-                <div>
-                  <p className="font-bold text-amber-900">Modo Demonstrativo • Redundância Local</p>
-                  <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
-                    Você está em modo local offline. Novos colaboradores adicionados neste PC ficam guardados <strong>apenas neste navegador</strong> e não aparecem no celular.
-                  </p>
-                  <p className="text-[10px] text-brand-600 font-bold mt-1.5 bg-brand-50 hover:bg-brand-100 transition-colors px-2 py-1 rounded inline-block">
-                    Dica: Insira suas chaves do Supabase na aba "Secrets" para sincronizar com o Celular.
-                  </p>
-                </div>
-              </div>
-            ) : lastSupabaseError ? (
-              <div className="flex items-start gap-2.5 bg-rose-50 p-4 rounded-2xl border border-rose-200 w-full text-[13px] text-slate-800">
-                <WifiOff className="w-5 h-5 text-rose-500 shrink-0 mt-0.5 animate-pulse" />
-                <div>
-                  <p className="font-bold text-rose-900">Chaves Detectadas • Erro de Banco</p>
-                  <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
-                    A URL e chave foram cadastradas, mas o Supabase reportou um erro ao carregar dados:
-                  </p>
-                  <p className="text-[10px] font-mono text-rose-700 bg-rose-100/50 p-2 rounded mt-1 overflow-x-auto max-w-full">
-                    {lastSupabaseError}
-                  </p>
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Isso geralmente ocorre se as tabelas <code className="font-mono bg-slate-100 p-0.5 rounded text-purple-700">husf_users</code> ainda não foram criadas no painel do Supabase. Use a aba "SQL Editor" do Supabase para criá-las.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-start gap-2.5 bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 w-full text-[13px] text-slate-700">
-                <Wifi className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-emerald-900">Banco de Dados Ativo • Nuvem Sync</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                    Tudo sincronizado em tempo real entre o computador, celular e outros aparelhos de forma colaborativa!
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </motion.div>
     </div>

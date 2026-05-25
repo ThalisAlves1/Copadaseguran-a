@@ -8,7 +8,21 @@ export interface StickerDefinition {
   page?: 'trabalho' | 'evolucao' | 'hall';
 }
 
-import { dbSaveWholeCatalog, DB_DEFAULT_STICKERS } from './supabase';
+// Fixed constant sticker catalog to completely avoid localStorage storage limit exceeded failures
+export const STATIC_STICKERS: StickerDefinition[] = [
+  ...Array.from({ length: 12 }).map((_, i) => ({
+    id: i + 1,
+    name: `Figurinha Meta ${(i % 6) + 1} - #${i + 1}`,
+    rarity: 'regular' as StickerRarity,
+    page: (i < 6 ? 'trabalho' : 'evolucao') as 'trabalho' | 'evolucao' | 'hall',
+    image: `/src/assets/images/sticker_${i + 1}.png`
+  })),
+  { id: 13, name: 'Celso Paredão', rarity: 'holografica', page: 'hall', image: '/src/assets/images/sticker_13.png' },
+  { id: 14, name: 'Speak Up', rarity: 'holografica', page: 'hall', image: '/src/assets/images/sticker_14.png' },
+  { id: 15, name: 'Lampião', rarity: 'lendaria', page: 'hall', image: '/src/assets/images/sticker_15.png' },
+  { id: 16, name: 'Mãos Limpas', rarity: 'lendaria', page: 'hall', image: '/src/assets/images/sticker_16.png' },
+  { id: 17, name: 'Suprema Bola de Ouro', rarity: 'suprema', page: 'hall', image: '/src/assets/images/sticker_17.png' }
+];
 
 // Get stickers from localStorage, with predefined initial values
 export function getStoredStickers(): StickerDefinition[] {
@@ -16,31 +30,54 @@ export function getStoredStickers(): StickerDefinition[] {
   if (data) {
     try {
       const parsed = JSON.parse(data) as StickerDefinition[];
-      return parsed.map(s => {
-        if (!s.page) {
-          if (s.id >= 1 && s.id <= 6) s.page = 'trabalho';
-          else if (s.id >= 7 && s.id <= 12) s.page = 'evolucao';
-          else s.page = 'hall';
-        }
-        return s;
-      });
-    } catch {
-      // Use defaults
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map(s => {
+          if (!s.page) {
+            if (s.id >= 1 && s.id <= 6) s.page = 'trabalho';
+            else if (s.id >= 7 && s.id <= 12) s.page = 'evolucao';
+            else s.page = 'hall';
+          }
+          if (!s.image && s.id <= 17) {
+            s.image = `/src/assets/images/sticker_${s.id}.png`;
+          }
+          return s;
+        });
+      }
+    } catch (e) {
+      console.error('Falha ao ler catálogo de figurinhas do LocalStorage:', e);
     }
   }
 
-  const seeded: StickerDefinition[] = DB_DEFAULT_STICKERS.map(s => {
-    const page: 'trabalho' | 'evolucao' | 'hall' = s.id >= 1 && s.id <= 6 ? 'trabalho' : s.id >= 7 && s.id <= 12 ? 'evolucao' : 'hall';
-    return { ...s, page };
-  });
-  localStorage.setItem('husf_sticker_catalog', JSON.stringify(seeded));
-  return seeded;
+  // Pre-seed catalog if empty or invalid
+  try {
+    localStorage.setItem('husf_sticker_catalog', JSON.stringify(STATIC_STICKERS));
+  } catch (e) {
+    console.warn('Falha ao gravar catálogo padrão no LocalStorage:', e);
+  }
+  return STATIC_STICKERS;
 }
 
-// Save stickers collection to localStorage
+// Set and save the cromo catalog safely
 export function saveStoredStickers(stickers: StickerDefinition[]) {
-  localStorage.setItem('husf_sticker_catalog', JSON.stringify(stickers));
-  dbSaveWholeCatalog(stickers);
+  try {
+    localStorage.setItem('husf_sticker_catalog', JSON.stringify(stickers));
+  } catch (e) {
+    console.warn('Cota de LocalStorage excedida! Salvando catálogo de figurinhas otimizado sem imagens base64.');
+    // Quota reached, filter out heavy base64 strings to safeguard user data
+    const stripped = stickers.map(s => {
+      const { image, ...sWithoutImg } = s;
+      // Keep static references only, custom uploaded base64 gets stripped to protect storage
+      if (s.id <= 17) {
+        return { ...s, image: `/src/assets/images/sticker_${s.id}.png` };
+      }
+      return sWithoutImg;
+    });
+    try {
+      localStorage.setItem('husf_sticker_catalog', JSON.stringify(stripped));
+    } catch (innerErr) {
+      console.error('Erro crítico ao salvar catálogo mesmo otimizado:', innerErr);
+    }
+  }
 }
 
 

@@ -38,11 +38,15 @@ export default function App() {
 
   // Update localStorage when user profile updates internally
   useEffect(() => {
-    if (user) {
-      const users = getStoredUsers();
+    if (user && user.cpf) {
+      const users = getStoredUsers() || [];
       const cleanUserCpf = user.cpf.replace(/\D/g, '');
-      const updatedUsers = users.map(u => u.cpf.replace(/\D/g, '') === cleanUserCpf ? { ...user, cpf: u.cpf } : u);
-      if (!updatedUsers.some(u => u.cpf.replace(/\D/g, '') === cleanUserCpf)) {
+      const updatedUsers = users.map(u => {
+        if (!u || !u.cpf || typeof u.cpf !== 'string') return u;
+        return u.cpf.replace(/\D/g, '') === cleanUserCpf ? { ...user, cpf: u.cpf } : u;
+      });
+      const hasUser = updatedUsers.some(u => u && u.cpf && typeof u.cpf === 'string' && u.cpf.replace(/\D/g, '') === cleanUserCpf);
+      if (!hasUser) {
         updatedUsers.push(user);
       }
       saveStoredUsers(updatedUsers);
@@ -173,7 +177,7 @@ export default function App() {
           <div className="w-14 h-14 rounded-full border-4 border-slate-100 border-t-brand-600 animate-spin mb-6 shadow-inner tracking-widest text-[#14b8a6]"></div>
           <div className="space-y-1 animate-pulse">
             <h3 className="font-extrabold text-slate-800 text-lg tracking-tight font-[Space_Grotesk]">
-              Remix: Quiz 6 Metas
+              Copa das Metas
             </h3>
             <p className="text-[12px] font-semibold text-slate-400">
               Carregando sessão de login...

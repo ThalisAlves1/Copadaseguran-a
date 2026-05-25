@@ -369,6 +369,26 @@ export async function dbSaveSingleUser(user: User): Promise<void> {
 // STICKERS CATALOG SYNCHRONIZATION HELPERS
 // ────────────────────────────────────────────────────────────────────────
 
+function trySetLocalCatalog(catalog: StickerDefinition[]) {
+  try {
+    localStorage.setItem('husf_sticker_catalog', JSON.stringify(catalog));
+  } catch (e) {
+    console.warn('Falha ao gravar catálogo de figurinhas no localStorage (cota excedida). Salvando versão compactada sem imagens base64.');
+    const stripped = catalog.map(s => {
+      const { image, ...sWithoutImg } = s;
+      if (s.id <= 17) {
+        return { ...s, image: `/src/assets/images/sticker_${s.id}.png` };
+      }
+      return sWithoutImg;
+    });
+    try {
+      localStorage.setItem('husf_sticker_catalog', JSON.stringify(stripped));
+    } catch (innerErr) {
+      console.error('Falha crítica ao gravar catálogo mesmo compactado:', innerErr);
+    }
+  }
+}
+
 export async function dbGetStickers(): Promise<StickerDefinition[]> {
   const getLocalCatalog = (): StickerDefinition[] => {
     const local = localStorage.getItem('husf_sticker_catalog');
@@ -389,7 +409,7 @@ export async function dbGetStickers(): Promise<StickerDefinition[]> {
       const page: 'trabalho' | 'evolucao' | 'hall' = s.id >= 1 && s.id <= 6 ? 'trabalho' : s.id >= 7 && s.id <= 12 ? 'evolucao' : 'hall';
       return { ...s, page };
     });
-    localStorage.setItem('husf_sticker_catalog', JSON.stringify(seeded));
+    trySetLocalCatalog(seeded);
     return seeded;
   };
 
@@ -431,7 +451,7 @@ export async function dbGetStickers(): Promise<StickerDefinition[]> {
           page: parsedPage
         };
       });
-      localStorage.setItem('husf_sticker_catalog', JSON.stringify(parsed));
+      trySetLocalCatalog(parsed);
       return parsed;
     } else {
       // Seed remote table since it has empty rows
@@ -451,7 +471,7 @@ export async function dbSaveWholeCatalog(stickers: StickerDefinition[]): Promise
     }
     return s;
   });
-  localStorage.setItem('husf_sticker_catalog', JSON.stringify(parsedStickers));
+  trySetLocalCatalog(parsedStickers);
 
   if (!isSupabaseConfigured || !supabaseClient) return;
 
@@ -501,7 +521,38 @@ export async function dbInsertSticker(sticker: StickerDefinition): Promise<void>
   if (!current.some(s => s.id === sticker.id)) {
     current.push({ ...sticker, page: pageVal });
   }
-  localStorage.setItem('husf_sticker_catalog', JSON.stringify(current));
+  trySetLocalCatalog(current);
+}
+
+export async function dbUpdateSticker(sticker: StickerDefinition): Promise<void> {
+  const pageVal = sticker.page || (sticker.id >= 1 && sticker.id <= 6 ? 'trabalho' : sticker.id >= 7 && sticker.id <= 12 ? 'evolucao' : 'hall');
+  
+  if (isSupabaseConfigured && supabaseClient) {
+    try {
+      const { error } = await supabaseClient
+        .from('husf_stickers')
+        .upsert({
+          id: sticker.id,
+          name: sticker.name,
+          rarity: `${pageVal}:${sticker.rarity}`,
+          image: sticker.image || null
+        }, { onConflict: 'id' });
+
+      if (error) throw error;
+    } catch (err) {
+      console.error('Failed to update sticker on Supabase:', err);
+      throw err;
+    }
+  }
+
+  const current = await dbGetStickers();
+  const updated = current.map(s => s.id === sticker.id ? { ...sticker, page: pageVal } : s);
+  
+  if (!current.some(s => s.id === sticker.id)) {
+    updated.push({ ...sticker, page: pageVal });
+  }
+  
+  trySetLocalCatalog(updated);
 }
 
 export async function dbDeleteSticker(id: number): Promise<void> {
@@ -523,7 +574,7 @@ export async function dbDeleteSticker(id: number): Promise<void> {
   // Update local storage only if remote succeeded (or of Supabase is not configured)
   const current = await dbGetStickers();
   const updated = current.filter(s => s.id !== id);
-  localStorage.setItem('husf_sticker_catalog', JSON.stringify(updated));
+  trySetLocalCatalog(updated);
 }
 
 

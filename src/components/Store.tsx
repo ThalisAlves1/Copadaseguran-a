@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ShoppingBag, Coins, PackageOpen, CheckCircle2, Shield, Sparkles, Trophy, Star } from 'lucide-react';
 import { PACKAGES, PackageDefinition, StickerDefinition } from '../lib/store';
 import { playSound } from '../lib/audio';
+import { StickerImage } from './StickerImage';
 
 interface StoreProps {
   coins: number;
@@ -206,11 +207,7 @@ export function Store({ coins, onBuyPack }: StoreProps) {
                             transition={{ delay: 0.3 + (idx * 0.15), type: 'spring' }}
                           >
                             <div className="scale-50 sm:scale-100 origin-center mb-0 sm:mb-0 w-full h-16 sm:h-24 flex items-center justify-center">
-                              {sticker.image ? (
-                                <img src={sticker.image} alt={sticker.name} className="max-w-full max-h-full object-contain drop-shadow-md mb-2 pointer-events-none" referrerPolicy="no-referrer" />
-                              ) : (
-                                getRarityIcon(sticker.rarity)
-                              )}
+                              <StickerImage id={sticker.id} name={sticker.name} customImage={sticker.image?.startsWith('data:') ? sticker.image : undefined} />
                             </div>
                           </motion.div>
                           <span className="font-bold text-[7px] sm:text-[11px] md:text-xs uppercase tracking-widest opacity-90 mb-0.5 sm:mb-3 block line-clamp-1">{sticker.rarity}</span>

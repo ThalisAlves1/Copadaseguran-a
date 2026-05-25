@@ -6,6 +6,7 @@ import { STICKER_CATALOG, StickerDefinition, getAllStickers, getStickerById, Sti
 import { playSound } from '../lib/audio';
 import confetti from 'canvas-confetti';
 import { dbGetTrade, dbUpsertTrade } from '../lib/supabase';
+import { StickerImage } from './StickerImage';
 
 interface TradingProps {
   user: User;
@@ -238,12 +239,10 @@ export function Trading({ user, onTradeComplete }: TradingProps) {
     if (!s) return null;
     return (
       <div className={`w-32 aspect-[2.5/3.5] rounded-xl flex flex-col items-center justify-center p-3 text-center border-[4px] ${getRarityColor(s.rarity)} shadow-md`}>
-        {s.image ? (
-          <img src={s.image} alt={s.name} className="flex-1 w-full min-h-0 object-contain drop-shadow-md mb-2 pointer-events-none" referrerPolicy="no-referrer" />
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-3xl font-bold opacity-30 mb-2">#{s.id}</div>
-        )}
-        <span className="font-bold text-[9px] uppercase tracking-widest opacity-90 mb-1">{s.rarity}</span>
+        <div className="flex-1 w-full min-h-0 flex flex-col justify-center">
+          <StickerImage id={s.id} name={s.name} customImage={s.image?.startsWith('data:') ? s.image : undefined} />
+        </div>
+        <span className="font-bold text-[9px] uppercase tracking-widest opacity-90 mt-2 mb-1">{s.rarity}</span>
         <h4 className="font-bold text-[10px] leading-tight font-[Space_Grotesk] line-clamp-3">{s.name}</h4>
       </div>
     );

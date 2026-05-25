@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Home, LogOut, CheckCircle2, Building2, PlayCircle, Trophy, ShoppingBag, Coins, LayoutGrid, UserCheck, MessageSquare, Pill, Stethoscope, Droplets, ShieldAlert, ArrowLeft, BookOpen, Crown, User as UserIcon, AlertCircle, Zap, ArrowRightLeft, Search, ShieldCheck, Award, UserPlus, Trash2, Lock, Unlock, Upload, Image, Database, Wifi, WifiOff } from 'lucide-react';
+import { Home, LogOut, CheckCircle2, Building2, PlayCircle, Trophy, ShoppingBag, Coins, LayoutGrid, UserCheck, MessageSquare, Pill, Stethoscope, Droplets, ShieldAlert, ArrowLeft, BookOpen, Crown, User as UserIcon, AlertCircle, Zap, ArrowRightLeft, Search, ShieldCheck, Award, UserPlus, Trash2, Lock, Unlock, Upload, Image, Database, Wifi, WifiOff, Edit } from 'lucide-react';
 import { User, MetaProgress } from '../types';
 import { Store } from './Store';
 import { Quiz } from './Quiz';
@@ -9,7 +9,9 @@ import { WelcomeScreen } from './WelcomeScreen';
 import { StudyMaterial } from './StudyMaterial';
 import { getStoredUsers, saveStoredUsers, formatCPF } from '../lib/auth';
 import { StickerDefinition, getStickerById, getAllStickers, getStoredStickers, saveStoredStickers } from '../lib/store';
-import { dbGetUsers, dbGetStickers, dbSaveSingleUser, isSupabaseConfigured, lastSupabaseError, dbInsertSticker, dbDeleteSticker } from '../lib/supabase';
+import { dbGetUsers, dbGetStickers, dbSaveSingleUser, isSupabaseConfigured, lastSupabaseError, dbInsertSticker, dbUpdateSticker, dbDeleteSticker, dbSaveWholeCatalog, DB_DEFAULT_STICKERS } from '../lib/supabase';
+import { StickerImage } from './StickerImage';
+
 
 
 const METAS = [
@@ -55,28 +57,59 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
 
   // States for dynamic sticker creation and management
   const [stickerRefresh, setStickerRefresh] = useState(0);
+  const [editingStickerId, setEditingStickerId] = useState<number | null>(null);
   const [newStickerName, setNewStickerName] = useState('');
+  const [customStickerId, setCustomStickerId] = useState('');
   const [newStickerRarity, setNewStickerRarity] = useState<'regular' | 'holografica' | 'lendaria' | 'suprema'>('regular');
+  const [newStickerPage, setNewStickerPage] = useState<'trabalho' | 'evolucao' | 'hall'>('trabalho');
   const [newStickerImage, setNewStickerImage] = useState('');
-  const [stickerImageMode, setStickerImageMode] = useState<'upload' | 'url'>('upload');
   const [stickerError, setStickerError] = useState('');
   const [stickerSuccess, setStickerSuccess] = useState('');
   const [stickerSearch, setStickerSearch] = useState('');
   const [isCreatingSticker, setIsCreatingSticker] = useState(false);
+  const [isRestoringCatalog, setIsRestoringCatalog] = useState(false);
   const [isDeletingStickerId, setIsDeletingStickerId] = useState<number | null>(null);
 
   const handleStickerFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 1.5 * 1024 * 1024) { // 1.5MB limit to avoid packing too much base64 into localStorage
-      setStickerError('A imagem selecionada é muito grande. Escolha uma imagem de até 1.5MB para melhor desempenho.');
-      return;
-    }
-
     const reader = new FileReader();
     reader.onloadend = () => {
-      setNewStickerImage(reader.result as string);
+      const img = new Image();
+      img.onload = () => {
+        // Safe resize/compress to max 220px dimensions to avoid local storage quota exceeded errors
+        const maxDim = 220;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', 0.7);
+          setNewStickerImage(compressed);
+        } else {
+          setNewStickerImage(reader.result as string);
+        }
+      };
+      img.onerror = () => {
+        setStickerError('Erro ao processar imagem para compressão.');
+      };
+      img.src = reader.result as string;
     };
     reader.onerror = () => {
       setStickerError('Erro ao ler a imagem local.');
@@ -97,27 +130,95 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
 
     setIsCreatingSticker(true);
     try {
-      const currentCatalog = getStoredStickers();
-      const nextId = currentCatalog.length > 0 ? Math.max(...currentCatalog.map(s => s.id)) + 1 : 1;
+      if (editingStickerId !== null) {
+        // Edit mode
+        const updatedSticker: StickerDefinition = {
+          id: editingStickerId,
+          name,
+          rarity: newStickerRarity,
+          image: newStickerImage.trim() || undefined,
+          page: newStickerPage
+        };
 
-      const newSticker: StickerDefinition = {
-        id: nextId,
-        name,
-        rarity: newStickerRarity,
-        image: newStickerImage.trim() || undefined
-      };
+        await dbUpdateSticker(updatedSticker);
+        setStickerRefresh(prev => prev + 1);
+        setNewStickerName('');
+        setNewStickerImage('');
+        setEditingStickerId(null);
+        setCustomStickerId('');
+        setStickerSuccess(`Figurinha #${editingStickerId} "${name}" atualizada com sucesso!`);
+        setTimeout(() => setStickerSuccess(''), 5000);
+      } else {
+        // Create mode
+        const currentCatalog = getStoredStickers();
+        
+        let targetId = currentCatalog.length > 0 ? Math.max(...currentCatalog.map(s => s.id)) + 1 : 1;
+        if (customStickerId.trim()) {
+          const parsedId = parseInt(customStickerId.trim());
+          if (isNaN(parsedId) || parsedId <= 0) {
+            setStickerError('Por favor, insira um ID numérico inteiro positivo válido.');
+            setIsCreatingSticker(false);
+            return;
+          }
+          if (currentCatalog.some(s => s.id === parsedId)) {
+            setStickerError(`Já existe uma figurinha no catálogo com o ID #${parsedId}. Escolha outro ID.`);
+            setIsCreatingSticker(false);
+            return;
+          }
+          targetId = parsedId;
+        }
 
-      await dbInsertSticker(newSticker);
-      setStickerRefresh(prev => prev + 1);
-      setNewStickerName('');
-      setNewStickerImage('');
-      setStickerSuccess(`Figurinha "#${nextId} - ${name}" cadastrada com sucesso!`);
-      setTimeout(() => setStickerSuccess(''), 5000);
+        const newSticker: StickerDefinition = {
+          id: targetId,
+          name,
+          rarity: newStickerRarity,
+          image: newStickerImage.trim() || undefined,
+          page: newStickerPage
+        };
+
+        await dbInsertSticker(newSticker);
+        setStickerRefresh(prev => prev + 1);
+        setNewStickerName('');
+        setNewStickerImage('');
+        setCustomStickerId('');
+        setStickerSuccess(`Figurinha "${name}" cadastrada com sucesso!`);
+        setTimeout(() => setStickerSuccess(''), 5000);
+      }
     } catch (err: any) {
       console.error(err);
       setStickerError(`Erro ao sincronizar figurinha na nuvem: ${err.message || 'Verifique sua conexão ou tente usar uma imagem menor.'}`);
     } finally {
       setIsCreatingSticker(false);
+    }
+  };
+
+  const handleRestoreDefaultStickers = async () => {
+    if (!confirm('Esta ação irá recriar todas as 17 figurinhas originais da Copa Celso (incluindo as Metas 1-6 em suas posições corretas, Celso Paredão, etc.). Figurinhas adicionais personalizadas já existentes não serão removidas. Deseja prosseguir?')) {
+      return;
+    }
+
+    setIsRestoringCatalog(true);
+    setStickerError('');
+    setStickerSuccess('');
+    try {
+      const current = await dbGetStickers();
+      const merged = [...current];
+      for (const def of DB_DEFAULT_STICKERS) {
+        if (!merged.some(m => m.id === def.id)) {
+          merged.push(def);
+        }
+      }
+      merged.sort((a, b) => a.id - b.id);
+
+      await dbSaveWholeCatalog(merged);
+      setStickerRefresh(prev => prev + 1);
+      setStickerSuccess('Álbum restaurado com sucesso! Figurinhas padrão (Metas 1-12 e Especiais) adicionadas/restauradas no sistema.');
+      setTimeout(() => setStickerSuccess(''), 7000);
+    } catch (err: any) {
+      console.error(err);
+      setStickerError(`Erro ao restaurar álbum padrão: ${err.message || err}`);
+    } finally {
+      setIsRestoringCatalog(false);
     }
   };
 
@@ -135,45 +236,6 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
       setStickerError(`Erro ao deletar figurinha na nuvem: ${err.message || err}`);
     } finally {
       setIsDeletingStickerId(null);
-    }
-  };
-
-  const [buyingStickerDirectly, setBuyingStickerDirectly] = useState<StickerDefinition | null>(null);
-  const [directBuyError, setDirectBuyError] = useState('');
-  const [directBuySuccess, setDirectBuySuccess] = useState('');
-
-  const getDirectStickerPrice = (rarity: string) => {
-    switch (rarity) {
-      case 'regular': return 20;
-      case 'holografica': return 40;
-      case 'lendaria': return 75;
-      case 'suprema': return 120;
-      default: return 20;
-    }
-  };
-
-  const handleConfirmDirectBuySticker = () => {
-    if (!user || !buyingStickerDirectly) return;
-    setDirectBuyError('');
-    setDirectBuySuccess('');
-
-    const price = getDirectStickerPrice(buyingStickerDirectly.rarity);
-    if (user.coins < price) {
-      setDirectBuyError('Você não possui moedas suficientes para adquirir este cromo diretamente.');
-      return;
-    }
-
-    if (onUpdateUser) {
-      onUpdateUser({
-        ...user,
-        coins: user.coins - price,
-        stickers: [...user.stickers, buyingStickerDirectly.id]
-      });
-      setDirectBuySuccess('Cromo adicionado ao seu álbum com sucesso!');
-      setTimeout(() => {
-        setBuyingStickerDirectly(null);
-        setDirectBuySuccess('');
-      }, 1500);
     }
   };
 
@@ -548,14 +610,21 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
        groups.push({ title: 'Resultados da Busca', color: 'from-slate-600 to-slate-800', bgColor: 'bg-slate-100 border-slate-200', numColor: 'text-slate-300', stickers: filteredStickers });
        return groups;
     }
+
+    const getPage = (s: typeof filteredStickers[0]) => {
+      if (s.page) return s.page;
+      if (s.id >= 1 && s.id <= 6) return 'trabalho';
+      if (s.id >= 7 && s.id <= 12) return 'evolucao';
+      return 'hall';
+    };
     
-    const page1 = filteredStickers.filter(s => s.id >= 1 && s.id <= 6);
+    const page1 = filteredStickers.filter(s => getPage(s) === 'trabalho');
     if (page1.length) groups.push({ title: 'Trabalho em Equipe', color: 'from-[#009b3a] to-[#007028]', bgColor: 'bg-[#e8f5e9] border-[#c8e6c9]', numColor: 'text-[#c8e6c9]/80', stickers: page1 });
     
-    const page2 = filteredStickers.filter(s => s.id >= 7 && s.id <= 12);
+    const page2 = filteredStickers.filter(s => getPage(s) === 'evolucao');
     if (page2.length) groups.push({ title: 'Evolução Contínua', color: 'from-[#002776] to-[#001746]', bgColor: 'bg-[#e3f2fd] border-[#bbdefb]', numColor: 'text-[#bbdefb]/80', stickers: page2 });
     
-    const especiais = filteredStickers.filter(s => s.id > 12);
+    const especiais = filteredStickers.filter(s => getPage(s) === 'hall');
     if (especiais.length) groups.push({ title: 'Hall da Fama', color: 'from-[#fedf00] to-[#e6c200]', bgColor: 'bg-[#fffde7] border-[#fff59d]', numColor: 'text-[#fff59d]/80', stickers: especiais });
     
     return groups;
@@ -1008,11 +1077,7 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                                   {sticker.rarity !== 'regular' && (
                                     <div className="absolute top-0 bottom-0 left-0 w-[200%] bg-gradient-to-r from-transparent via-white/50 to-transparent -translate-x-[60%] group-hover:animate-shimmer pointer-events-none" />
                                   )}
-                                  {sticker.image ? (
-                                    <img src={sticker.image} alt={sticker.name} className="flex-1 w-full min-h-0 object-contain drop-shadow-md mb-2 pointer-events-none mt-1" referrerPolicy="no-referrer" />
-                                  ) : (
-                                    <div className="flex-1 flex items-center justify-center text-4xl font-bold opacity-30 mb-2">#{sticker.id}</div>
-                                  )}
+                                  <StickerImage id={sticker.id} name={sticker.name} customImage={sticker.image} />
                                   <div className="mt-auto bg-slate-100/80 w-[#110%] -mx-[5%] py-1.5 relative left-1/2 -translate-x-1/2">
                                      <span className="font-bold text-[8px] uppercase tracking-widest opacity-90 block leading-tight text-slate-800 mb-0.5">{sticker.rarity}</span>
                                      <h4 className="font-bold text-[10px] leading-tight font-[Space_Grotesk] line-clamp-2 text-slate-800 px-2">{sticker.name}</h4>
@@ -1023,20 +1088,16 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                               return (
                                 <div 
                                   key={`${sticker.id}-${i}`} 
-                                  onClick={() => setBuyingStickerDirectly(sticker)}
-                                  className={`w-full aspect-[2.5/3.5] max-w-[140px] flex flex-col items-center justify-center p-1 text-center relative overflow-hidden group border-2 ${group.bgColor} cursor-pointer hover:border-brand-500 hover:scale-[1.03] transition-all hover:shadow-md`}
-                                  title="Clique para obter esta figurinha directamente por moedas"
+                                  className={`w-full aspect-[2.5/3.5] max-w-[140px] flex flex-col items-center justify-center p-1 text-center relative overflow-hidden border-2 ${group.bgColor} select-none opacity-80`}
+                                  title={`${sticker.name} (Ainda não adquirida)`}
                                 >
-                                  <div className="absolute inset-x-0 inset-y-0 bg-white/20"></div>
+                                  <div className="absolute inset-x-0 inset-y-0 bg-white/10"></div>
                                   <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
-                                       <span className={`text-[80px] xs:text-[100px] leading-none font-black font-[Space_Grotesk] tracking-tight group-hover:scale-110 transition-transform select-none ${group.numColor}`}>{sticker.id}</span>
+                                       <span className={`text-[80px] xs:text-[100px] leading-none font-black font-[Space_Grotesk] tracking-tight select-none ${group.numColor}`}>{sticker.id}</span>
                                   </div>
-                                  <div className="mt-auto mb-2 relative z-10 w-full px-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
-                                       <div className="bg-white/95 py-1.5 rounded-sm backdrop-blur-xs shadow-sm flex flex-col items-center gap-0.5">
-                                         <span className="font-bold text-[9px] sm:text-[10px] uppercase tracking-widest text-slate-700 line-clamp-1 truncate block px-1">{sticker.name}</span>
-                                         <span className="text-[8px] font-extrabold text-amber-600 bg-amber-50 px-1 py-0.5 rounded flex items-center gap-0.5">
-                                           {getDirectStickerPrice(sticker.rarity)} <Coins className="w-2.5 h-2.5 text-amber-500" />
-                                         </span>
+                                  <div className="mt-auto mb-2 relative z-10 w-full px-1.5">
+                                       <div className="bg-white/90 py-1.5 rounded-sm backdrop-blur-xs shadow-xs flex flex-col items-center justify-center">
+                                         <span className="font-bold text-[9px] sm:text-[10px] uppercase tracking-widest text-slate-500 line-clamp-1 truncate block px-1">{sticker.name}</span>
                                        </div>
                                   </div>
                                 </div>
@@ -1049,90 +1110,6 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                   ))
                 )}
               </div>
-
-              {/* Direct Purchase Modal */}
-              <AnimatePresence>
-                {buyingStickerDirectly && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4 text-center"
-                  >
-                    <motion.div
-                      initial={{ scale: 0.95, y: 15 }}
-                      animate={{ scale: 1, y: 0 }}
-                      exit={{ scale: 0.95, y: 15 }}
-                      className="bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-sm w-full relative overflow-hidden flex flex-col items-center"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setBuyingStickerDirectly(null)}
-                        className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer"
-                      >
-                        ✕
-                      </button>
-
-                      <div className="mb-4 inline-flex items-center justify-center w-14 h-14 rounded-full bg-amber-50 border border-amber-200 text-amber-500">
-                        <Coins className="w-8 h-8 animate-bounce" />
-                      </div>
-
-                      <h3 className="text-lg font-extrabold text-slate-800 font-[Space_Grotesk] mb-2">
-                        Adquirir Cromo Direto
-                      </h3>
-
-                      <p className="text-slate-500 text-xs mb-4">
-                        Deseja gastar suas moedas para colar a figurinha <span className="font-bold text-slate-800">#{buyingStickerDirectly.id} - "{buyingStickerDirectly.name}"</span> diretamente em seu Álbum sem precisar de sorte?
-                      </p>
-
-                      <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-6 w-full">
-                        <div className="flex justify-between text-xs text-slate-500 font-bold uppercase mb-2">
-                          <span>Seu Saldo:</span>
-                          <span className="text-slate-800 flex items-center gap-1">
-                            {user.coins} <Coins className="w-3.5 h-3.5 text-amber-500" />
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-xs font-bold uppercase border-t border-slate-200/60 pt-2">
-                          <span className="text-brand-700">Preço do Cromo ({buyingStickerDirectly.rarity}):</span>
-                          <span className="text-amber-600 flex items-center gap-1 text-sm font-black">
-                            {getDirectStickerPrice(buyingStickerDirectly.rarity)} <Coins className="w-4 h-4 text-amber-500" />
-                          </span>
-                        </div>
-                      </div>
-
-                      {directBuyError && (
-                        <div className="mb-4 text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-100 p-2.5 rounded-xl w-full">
-                          {directBuyError}
-                        </div>
-                      )}
-
-                      {directBuySuccess && (
-                        <div className="mb-4 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 p-2.5 rounded-xl w-full">
-                          {directBuySuccess}
-                        </div>
-                      )}
-
-                      <div className="flex gap-3 w-full">
-                        <button
-                          type="button"
-                          onClick={() => setBuyingStickerDirectly(null)}
-                          className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold py-3 px-4 rounded-xl transition-all cursor-pointer"
-                        >
-                          Cancelar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleConfirmDirectBuySticker}
-                          disabled={user.coins < getDirectStickerPrice(buyingStickerDirectly.rarity)}
-                          className={`flex-1 text-white text-xs font-bold py-3 px-4 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer ${user.coins >= getDirectStickerPrice(buyingStickerDirectly.rarity) ? 'bg-amber-500 hover:bg-amber-600' : 'bg-slate-300 cursor-not-allowed opacity-85'}`}
-                        >
-                          Confirmar e Colar
-                        </button>
-                      </div>
-                    </motion.div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </motion.div>
           )}
 
@@ -1887,16 +1864,50 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                       <Trophy className="w-5 h-5 text-amber-500 animate-pulse" />
                       Gerenciamento de Figurinhas da Copa Celso (Álbum)
                     </h3>
-                    <p className="text-slate-400 text-xs mt-0.5">Cadastre novas figurinhas colecionáveis ou remova itens existentes do álbum e dos pacotes de compra em tempo real.</p>
+                    <p className="text-slate-400 text-xs mt-0.5">As figurinhas colecionáveis agora estão fixadas com total estabilidade no código do aplicativo.</p>
+                  </div>
+                </div>
+
+                {/* Informative Alert - Actionable assign methods */}
+                <div className="mb-6 bg-purple-50/70 border border-purple-200 p-4.5 rounded-2xl flex gap-3.5 items-start shadow-xs">
+                  <Award className="w-5 h-5 text-purple-600 shrink-0 mt-0.5 animate-bounce" />
+                  <div className="text-xs text-purple-950 leading-relaxed font-semibold">
+                    <p className="font-extrabold text-purple-950 text-sm mb-1 font-[Space_Grotesk]">💡 Como atribuir Imagens às suas Figurinhas (2 Formas Fáceis)</p>
+                    <p className="mb-2 text-slate-700">Escolha a maneira que for mais conveniente para você atualizar as fotos de cada uma das figurinhas:</p>
+                    
+                    <div className="grid md:grid-cols-2 gap-4 mt-2">
+                      <div className="bg-white p-3 rounded-xl border border-purple-100 flex flex-col justify-between">
+                        <div>
+                          <p className="font-extrabold text-purple-800 text-[11px] uppercase tracking-wider mb-1">🚀 1. Pelo Painel Administrativo (Super Fácil)</p>
+                          <p className="text-[10.5px] text-slate-500 font-medium leading-normal">Basta encontrar a figurinha na tabela de <strong>"Figurinhas Ativas"</strong> ao lado, clicar em <strong>"Editar"</strong>, selecionar qualquer imagem do seu computador (PC) ou colar um link da internet, e clicar em <strong>"Salvar Alterações"</strong>.</p>
+                        </div>
+                        <p className="text-[10px] text-purple-700 font-bold mt-2 font-mono">⚡ Atualiza em tempo real para todos!</p>
+                      </div>
+
+                      <div className="bg-white p-3 rounded-xl border border-purple-100 flex flex-col justify-between">
+                        <div>
+                          <p className="font-extrabold text-purple-800 text-[11px] uppercase tracking-wider mb-1">📂 2. Enviando Arquivos ao Projeto (Opcional)</p>
+                          <p className="text-[10.5px] text-slate-500 font-medium leading-normal">Você pode carregar as imagens diretamente no gerenciador de arquivos do projeto com os nomes padronizados:</p>
+                          <div className="bg-slate-50 p-1.5 rounded-lg text-slate-600 font-mono text-[9px] font-bold mt-1 inline-block">
+                            /src/assets/images/sticker_1.png (Figurinha #1)<br />
+                            /src/assets/images/sticker_13.png (Celso Paredão)
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-slate-500 font-bold mt-2">O app detectará e carregará tudo automaticamente!</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 <div className="grid lg:grid-cols-5 gap-6">
-                  {/* Form to Add Sticker */}
-                  <div className="lg:col-span-2 bg-slate-50/50 border border-slate-200/65 p-5 rounded-2xl flex flex-col justify-between">
+                  {/* Form to Add/Edit Sticker */}
+                  <div id="sticker-form-container" className="lg:col-span-2 bg-slate-50/50 border border-slate-200/65 p-5 rounded-2xl flex flex-col justify-between scroll-mt-6">
                     <div>
-                      <h4 className="font-extrabold text-xs text-purple-700 uppercase tracking-widest mb-4 flex items-center gap-1.5 font-[Space_Grotesk]">
-                        ✨ Adicionar Cromo no Catálogo
+                      <h4 className="font-extrabold text-xs text-purple-700 uppercase tracking-widest mb-4 flex items-center justify-between font-[Space_Grotesk]">
+                        <span>{editingStickerId !== null ? `✏️ Editar Figurinha #${editingStickerId}` : '✨ Adicionar Cromo no Catálogo'}</span>
+                        {editingStickerId !== null && (
+                          <span className="text-[10px] lowercase normal-case text-purple-600 bg-purple-100/70 px-2.2 py-0.5 rounded font-extrabold animate-pulse">modo edição</span>
+                        )}
                       </h4>
 
                       <form onSubmit={handleCreateSticker} className="space-y-4">
@@ -1913,6 +1924,29 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                           />
                         </div>
 
+                        {/* ID Input (Optional) */}
+                        {editingStickerId === null ? (
+                          <div className="space-y-1">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wide flex items-center justify-between">
+                              <span>ID da Figurinha (Opcional)</span>
+                              <span className="text-[10px] text-slate-400 font-normal lowercase">gerado automático se vazio</span>
+                            </label>
+                            <input 
+                              type="number" 
+                              placeholder="Ex: 1, 2, 3... (ID no álbum)"
+                              value={customStickerId}
+                              onChange={(e) => setCustomStickerId(e.target.value)}
+                              className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-purple-500 font-medium transition-colors"
+                              min="1"
+                            />
+                          </div>
+                        ) : (
+                          <div className="space-y-1 bg-purple-50/40 p-3 rounded-xl border border-purple-100/80 text-[11px] text-purple-900 font-medium">
+                            <span className="font-bold uppercase tracking-wider block text-[9px] text-purple-700 mb-0.5">ID da Figurinha sob Edição</span>
+                            O ID desta figurinha é fixo em <strong className="font-extrabold text-purple-950 font-mono text-xs">#{editingStickerId}</strong> e não pode ser editado.
+                          </div>
+                        )}
+
                         {/* Rarity selector */}
                         <div className="space-y-1">
                           <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Raridade</label>
@@ -1928,81 +1962,75 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                           </select>
                         </div>
 
-                        {/* Origem da Imagem (Upload Local ou Link Web) */}
-                        <div className="space-y-2">
-                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Origem da Imagem da Figurinha</label>
-                          <div className="flex bg-white border border-slate-200/80 p-1 rounded-xl">
-                            <button
-                              type="button"
-                              onClick={() => { setStickerImageMode('upload'); setNewStickerImage(''); }}
-                              className={`flex-1 text-center py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${stickerImageMode === 'upload' ? 'bg-purple-100/70 text-purple-700' : 'text-slate-500 hover:text-slate-800'}`}
-                            >
-                              📁 Enviar do Meu PC (Local)
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => { setStickerImageMode('url'); setNewStickerImage(''); }}
-                              className={`flex-1 text-center py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${stickerImageMode === 'url' ? 'bg-purple-100/70 text-purple-700' : 'text-slate-500 hover:text-slate-800'}`}
-                            >
-                              🔗 Link Web (URL)
-                            </button>
-                          </div>
+                        {/* Album Page Selector */}
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Página / Seção do Álbum</label>
+                          <select 
+                            value={newStickerPage}
+                            onChange={(e) => setNewStickerPage(e.target.value as any)}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-purple-500 font-medium transition-colors cursor-pointer"
+                          >
+                            <option value="trabalho">Trabalho em Equipe</option>
+                            <option value="evolucao">Evolução Contínua</option>
+                            <option value="hall">Hall da Fama</option>
+                          </select>
                         </div>
 
-                        {stickerImageMode === 'upload' ? (
-                          <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wide block">Carregar Arquivo Local</label>
-                            <div className="border-2 border-dashed border-slate-200 hover:border-purple-400 rounded-xl p-4 flex flex-col items-center justify-center bg-white hover:bg-slate-50/50 transition-colors relative cursor-pointer">
+                        {/* Imagem da Figurinha */}
+                        <div className="space-y-4 border-t border-slate-200/60 pt-4">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wide block">Imagem de Capa da Figurinha</label>
+                          
+                          {/* Option 1: Upload from PC */}
+                          <div className="space-y-1.5">
+                            <span className="text-[10.5px] font-bold text-slate-500 block">Opção A: Carregar arquivo de imagem do seu computador (PC)</span>
+                            <div className="border-2 border-dashed border-slate-200 hover:border-purple-400 rounded-xl p-3.5 flex flex-col items-center justify-center bg-white hover:bg-slate-50/50 transition-colors relative cursor-pointer">
                               <input 
                                 type="file" 
                                 accept="image/*" 
                                 onChange={handleStickerFileChange}
                                 className="absolute inset-0 opacity-0 cursor-pointer"
                               />
-                              <Upload className="w-6 h-6 text-slate-400 mb-1.5" />
-                              <span className="text-[11px] text-slate-500 font-semibold text-center">Clique para selecionar imagem do seu PC</span>
-                              <span className="text-[9px] text-slate-400 mt-0.5">Tamanho recomendado: até 1.5MB</span>
+                              <Upload className="w-5 h-5 text-slate-400 mb-1" />
+                              <span className="text-[10.5px] text-slate-500 font-bold text-center">Clique para escolher imagem do seu PC</span>
+                              <span className="text-[8px] text-slate-400 mt-0.5 uppercase tracking-wider font-extrabold text-purple-700">Compressão automática p/ base64 em tempo real</span>
                             </div>
-                            {newStickerImage && (
-                              <div className="mt-2 bg-purple-50/50 border border-purple-100 p-2 text-xs rounded-xl flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-lg bg-white border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
-                                  <img src={newStickerImage} alt="Preview" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <span className="block text-[11px] text-purple-950 font-bold">✓ Imagem carregada localmente</span>
-                                  <button 
-                                    type="button" 
-                                    onClick={() => setNewStickerImage('')} 
-                                    className="text-[10px] text-rose-600 font-bold hover:underline"
-                                  >
-                                    Remover imagem
-                                  </button>
-                                </div>
-                              </div>
-                            )}
                           </div>
-                        ) : (
-                          <div className="space-y-1">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wide flex items-center justify-between">
-                              <span>Link da Imagem (URL)</span>
-                              <span className="text-[10px] text-slate-400 lowercase normal-case">usa padrão se vazio</span>
-                            </label>
+
+                          {/* Option 2: Type filename or URL */}
+                          <div className="space-y-1.5">
+                            <span className="text-[10.5px] font-bold text-slate-500 block">Opção B: Digite o nome do arquivo enviado OU link da Web (URL)</span>
                             <input 
-                              type="url" 
-                              placeholder="https://exemplo.com/imagem.png"
+                              type="text" 
+                              placeholder="Ex: celso-conexao-meta2.png ou https://imgur.com/foto.jpg"
                               value={newStickerImage}
                               onChange={(e) => setNewStickerImage(e.target.value)}
-                              className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-purple-500 font-medium transition-colors"
+                              className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-medium transition-colors"
                             />
-                            {newStickerImage && (
-                              <div className="mt-2 bg-slate-50 rounded-xl p-2.5 flex items-center justify-center border border-slate-100">
-                                <div className="w-12 h-12 rounded-lg border border-slate-200 overflow-hidden bg-white shrink-0 flex items-center justify-center">
-                                  <img src={newStickerImage} alt="Preview URL" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
-                                </div>
-                              </div>
-                            )}
+                            <p className="text-[9px] text-slate-400 leading-normal">
+                              💡 <strong>Dica de ouro:</strong> Se você arrastou um arquivo para a pasta do projeto (ex: <code className="bg-slate-100 text-slate-900 px-1 py-0.5 rounded font-bold">celso-conexao-meta2.png</code>), basta digitar o nome exato dele aqui! O sistema resolverá e exibirá automaticamente.
+                            </p>
                           </div>
-                        )}
+
+                          {/* Preview container */}
+                          {newStickerImage && (
+                            <div className="mt-2 bg-purple-50/60 border border-purple-100 p-2.5 text-xs rounded-xl flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-lg bg-white border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                                <StickerImage id={editingStickerId || 1} name="Pré-visualização" customImage={newStickerImage} className="w-full h-full object-contain m-0" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <span className="block text-[11px] text-purple-950 font-bold max-w-full truncate">Visualização ativa:</span>
+                                <span className="block text-[9.5px] text-slate-500 truncate max-w-full font-mono">{newStickerImage.startsWith('data:') ? '✓ Imagem Carregada do PC (Base64)' : newStickerImage}</span>
+                                <button 
+                                  type="button" 
+                                  onClick={() => setNewStickerImage('')} 
+                                  className="text-[10px] text-rose-600 font-bold hover:underline"
+                                >
+                                  Remover/Limpar imagem
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
 
                         {/* Status messages inside the form */}
                         {stickerError && (
@@ -2019,13 +2047,30 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                           </div>
                         )}
 
-                        <button 
-                          type="submit"
-                          disabled={isCreatingSticker}
-                          className={`w-full text-white font-extrabold uppercase text-xs tracking-wider py-3 rounded-xl shadow-xs transition-colors cursor-pointer active:scale-95 ${isCreatingSticker ? 'bg-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-700 hover:to-indigo-800'}`}
-                        >
-                          {isCreatingSticker ? 'Sincronizando...' : 'Adicionar Figurinha'}
-                        </button>
+                        <div className="space-y-2">
+                          <button 
+                            type="submit"
+                            disabled={isCreatingSticker}
+                            className={`w-full text-white font-extrabold uppercase text-xs tracking-wider py-3 rounded-xl shadow-xs transition-colors cursor-pointer active:scale-95 ${isCreatingSticker ? 'bg-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-700 hover:to-indigo-800'}`}
+                          >
+                            {isCreatingSticker ? 'Sincronizando...' : editingStickerId !== null ? 'Salvar Alterações' : 'Adicionar Figurinha'}
+                          </button>
+
+                          {editingStickerId !== null && (
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                setEditingStickerId(null);
+                                setNewStickerName('');
+                                setNewStickerImage('');
+                                setCustomStickerId('');
+                              }}
+                              className="w-full text-slate-500 bg-white border border-slate-200/80 hover:bg-slate-100/50 hover:text-slate-800 font-extrabold uppercase text-[10px] tracking-wider py-2.5 rounded-xl transition-colors cursor-pointer active:scale-95"
+                            >
+                              Cancelar Edição
+                            </button>
+                          )}
+                        </div>
                       </form>
                     </div>
                   </div>
@@ -2033,11 +2078,23 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                   {/* List and Search of Stickers */}
                   <div className="lg:col-span-3 space-y-4">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                      <h4 className="font-extrabold text-xs text-slate-500 uppercase tracking-widest flex items-center gap-1 font-[Space_Grotesk]">
-                        📋 Figurinhas Ativas ({allStickersCatalog.length})
-                      </h4>
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5">
+                        <h4 className="font-extrabold text-xs text-slate-500 uppercase tracking-widest flex items-center gap-1 font-[Space_Grotesk]">
+                          📋 Figurinhas Ativas ({allStickersCatalog.length})
+                        </h4>
+                        <button
+                          type="button"
+                          disabled={isRestoringCatalog}
+                          onClick={handleRestoreDefaultStickers}
+                          className="bg-purple-100 hover:bg-purple-200 text-purple-700 font-extrabold text-[10px] uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all cursor-pointer disabled:opacity-50 inline-flex items-center gap-1 border-none active:scale-95"
+                          title="Recria as 17 figurinhas originais (Metas de 1 a 12 e Especiais) se estiverem deletadas"
+                        >
+                          <Database className="w-3 h-3" />
+                          {isRestoringCatalog ? 'Restaurando...' : 'Restaurar Metas Padrão'}
+                        </button>
+                      </div>
 
-                      <div className="relative w-full sm:w-60 shrink-0">
+                      <div className="relative w-full sm:w-52 shrink-0">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                         <input
                           type="text"
@@ -2056,6 +2113,7 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                             <th className="py-3 px-4 w-16">ID</th>
                             <th className="py-3 px-4">Nome da Figurinha</th>
                             <th className="py-3 px-4">Raridade</th>
+                            <th className="py-3 px-4">Seção</th>
                             <th className="py-3 px-4 text-right w-20">Ações</th>
                           </tr>
                         </thead>
@@ -2068,18 +2126,19 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                               else if (st.rarity === 'lendaria') badgeColor = "bg-fuchsia-100 text-fuchsia-800 font-bold border border-fuchsia-200";
                               else if (st.rarity === 'holografica') badgeColor = "bg-cyan-100 text-cyan-800 font-bold border border-cyan-200";
 
+                              let pageLabel = "Trabalho em Equipe";
+                              const stPage = st.page || (st.id >= 1 && st.id <= 6 ? 'trabalho' : st.id >= 7 && st.id <= 12 ? 'evolucao' : 'hall');
+                              if (stPage === 'evolucao') pageLabel = "Evolução Contínua";
+                              else if (stPage === 'hall') pageLabel = "Hall da Fama";
+
                               return (
                                 <tr key={st.id} className="hover:bg-slate-50/50 transition-colors">
                                   <td className="py-3 px-4 font-mono font-bold text-slate-400 text-[11px]">#{st.id}</td>
                                   <td className="py-3 px-4">
                                     <div className="flex items-center gap-2">
-                                      {st.image ? (
-                                        <div className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 shrink-0">
-                                          <img src={st.image} alt={st.name} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
-                                        </div>
-                                      ) : (
-                                        <div className="w-6 h-6 rounded-md bg-purple-50 text-purple-600 flex items-center justify-center font-black text-[10px] shrink-0">★</div>
-                                      )}
+                                      <div className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 shrink-0">
+                                        <StickerImage id={st.id} name={st.name} customImage={st.image} className="w-full h-full object-contain m-0 p-0" />
+                                      </div>
                                       <span className="font-semibold text-slate-800 truncate max-w-[150px] sm:max-w-xs">{st.name}</span>
                                     </div>
                                   </td>
@@ -2088,7 +2147,29 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                                       {st.rarity}
                                     </span>
                                   </td>
-                                  <td className="py-3 px-4 text-right">
+                                  <td className="py-3 px-4">
+                                    <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-extrabold border border-slate-200">
+                                      {pageLabel}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-4 text-right flex items-center justify-end gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingStickerId(st.id);
+                                        setNewStickerName(st.name);
+                                        setNewStickerRarity(st.rarity);
+                                        setNewStickerPage(stPage);
+                                        setNewStickerImage(st.image || '');
+                                        // Scroll to form smoothly
+                                        document.getElementById('sticker-form-container')?.scrollIntoView({ behavior: 'smooth' });
+                                      }}
+                                      className="text-purple-600 hover:bg-purple-50 p-1 px-2.5 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer active:scale-90 font-bold border-none"
+                                      title="Editar figurinha e enviar nova imagem"
+                                    >
+                                      Editar
+                                    </button>
+
                                     <button
                                       type="button"
                                       disabled={isDeletingStickerId !== null}
@@ -2109,7 +2190,7 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                             })}
                           {allStickersCatalog.filter(st => st.name.toLowerCase().includes(stickerSearch.toLowerCase())).length === 0 && (
                             <tr>
-                              <td colSpan={4} className="py-8 text-center text-slate-400 italic">
+                              <td colSpan={5} className="py-8 text-center text-slate-400 italic">
                                 Nenhuma figurinha encontrada com esse termo.
                               </td>
                             </tr>
