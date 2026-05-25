@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShoppingBag, Coins, PackageOpen, CheckCircle2, Shield, Sparkles, Trophy, Star } from 'lucide-react';
+import { ShoppingBag, Coins, PackageOpen, CheckCircle2, Shield, Sparkles, Trophy, Star, Briefcase, Flame, Crown } from 'lucide-react';
 import { PACKAGES, PackageDefinition, StickerDefinition } from '../lib/store';
 import { playSound } from '../lib/audio';
 import { StickerImage } from './StickerImage';
@@ -14,6 +14,16 @@ export function Store({ coins, onBuyPack }: StoreProps) {
   const [openedStickers, setOpenedStickers] = useState<StickerDefinition[] | null>(null);
   const [openingPackage, setOpeningPackage] = useState<PackageDefinition | null>(null);
   const [step, setStep] = useState<'idle' | 'shaking' | 'revealing'>('idle');
+
+  const getPackageIcon = (id: string, className: string) => {
+    switch (id) {
+      case 'plantao': return <Briefcase className={className} />;
+      case 'elite': return <Sparkles className={className} />;
+      case 'reliquia': return <Crown className={className} />;
+      case 'final': return <Flame className={className} />;
+      default: return <PackageOpen className={className} />;
+    }
+  };
 
   const handleBuy = (packageId: string, price: number) => {
     if (coins >= price) {
@@ -155,7 +165,7 @@ export function Store({ coins, onBuyPack }: StoreProps) {
                   {openingPackage.imageUrl ? (
                     <img src={openingPackage.imageUrl} alt={openingPackage.name} className="w-24 h-32 sm:w-40 sm:h-56 object-contain drop-shadow-xl mb-4 sm:mb-8 relative z-10" referrerPolicy="no-referrer" />
                   ) : (
-                    <PackageOpen className="w-20 h-20 sm:w-32 sm:h-32 text-white drop-shadow-xl mb-4 sm:mb-8 relative z-10" />
+                    getPackageIcon(openingPackage.id, "w-20 h-20 sm:w-32 sm:h-32 text-white drop-shadow-xl mb-4 sm:mb-8 relative z-10")
                   )}
                   <span className="bg-black/20 text-white font-bold tracking-widest text-[10px] sm:text-sm uppercase px-3 sm:px-4 py-1 sm:py-1.5 rounded-full mb-3 sm:mb-4 relative z-10 backdrop-blur-sm border border-white/20">
                     {openingPackage.category}

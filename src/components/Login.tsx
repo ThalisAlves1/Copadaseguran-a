@@ -1,3 +1,4 @@
+import logo from '../assets/images/copa_metas_logo_clean_1779667992235.png';
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { ShieldCheck, ArrowRight, Loader2, Building2, UserCheck, ArrowLeft, Wifi, WifiOff } from 'lucide-react';
@@ -85,7 +86,7 @@ export function Login({ onLoginSuccess }: LoginProps) {
               {/* Radial glow directly behind the cup crown */}
               <div className="absolute inset-0 rounded-full bg-teal-400/20 blur-3xl pointer-events-none scale-110" />
               <img
-                src="/src/assets/images/copa_metas_logo_clean_1779667992235.png"
+                src={logo}
                 alt="Copa das Metas Shield"
                 className="w-64 h-64 md:w-80 md:h-80 lg:w-[340px] lg:h-[340px] object-contain filter drop-shadow-[0_16px_32px_rgba(0,0,0,0.5)] hover:scale-105 transition-transform duration-300 relative z-10"
                 referrerPolicy="no-referrer"
