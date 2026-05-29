@@ -157,6 +157,23 @@ function promiseWithTimeout<T>(promise: Promise<T>, timeoutMs = 15000): Promise<
   });
 }
 
+// Helper para estabelecer uma conexão Realtime com a tabela de usuários
+export function subscribeToUsers(onUpdate: (payload: any) => void) {
+  if (!isSupabaseConfigured || !supabaseClient) return null;
+
+  return supabaseClient
+    .channel('public:husf_users')
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'husf_users' },
+      (payload) => {
+        console.log('Update real-time recebido:', payload);
+        onUpdate(payload);
+      }
+    )
+    .subscribe();
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // USERS SYNCHRONIZATION HELPERS
 // ────────────────────────────────────────────────────────────────────────
