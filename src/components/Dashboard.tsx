@@ -9,7 +9,7 @@ import { WelcomeScreen } from './WelcomeScreen';
 import { StudyMaterial } from './StudyMaterial';
 import { getStoredUsers, saveStoredUsers, formatCPF } from '../lib/auth';
 import { StickerDefinition, getStickerById, getAllStickers, getStoredStickers, saveStoredStickers } from '../lib/store';
-import { dbGetUsers, dbGetStickers, dbSaveSingleUser, isSupabaseConfigured, lastSupabaseError, dbInsertSticker, dbUpdateSticker, dbDeleteSticker, dbSaveWholeCatalog, DB_DEFAULT_STICKERS } from '../lib/supabase';
+import { dbGetUsers, dbGetStickers, dbSaveSingleUser, isSupabaseConfigured, lastSupabaseError, dbInsertSticker, dbUpdateSticker, dbDeleteSticker, dbSaveWholeCatalog, DB_DEFAULT_STICKERS, subscribeToUsers } from '../lib/supabase';
 import { StickerImage } from './StickerImage';
 
 
@@ -339,6 +339,28 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
     loadFreshData();
     return () => { active = false; };
   }, [adminRefresh, activeTab]);
+
+  // Realtime subscription for users
+  useEffect(() => {
+    const subscription = subscribeToUsers((payload) => {
+      const updatedUser = payload.new;
+      if (updatedUser) {
+        setUsersList(prev => prev.map(u => u.cpf === updatedUser.cpf ? {
+            cpf: updatedUser.cpf,
+            name: updatedUser.name,
+            sector: updatedUser.sector,
+            coins: updatedUser.coins,
+            stickers: updatedUser.stickers,
+            progress: updatedUser.progress,
+            isAdmin: !!updatedUser.is_admin
+        } : u));
+      }
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
 
 
   const computeSectorRanking = () => {
