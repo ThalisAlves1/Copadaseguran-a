@@ -631,8 +631,8 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
   }, [filteredStickers, searchQuery]);
 
   return (
-    <div className="min-h-screen bg-slate-50/50">
-      <div className="max-w-7xl mx-auto w-full flex flex-col lg:flex-row gap-6 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-slate-50/50 overflow-x-hidden">
+      <div className="max-w-7xl mx-auto w-full flex flex-col lg:flex-row gap-6 p-2 sm:p-6 lg:p-8">
         
         {/* Sidebar / Header */}
         <div className="w-full lg:w-80 shrink-0 space-y-4 lg:space-y-6">
@@ -683,59 +683,59 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
           <div className="bg-white p-2 sm:p-3 lg:p-4 rounded-t-3xl sm:rounded-2xl shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)] sm:shadow-sm border-t sm:border border-slate-100 flex lg:flex-col gap-1 sm:gap-2 fixed sm:static bottom-0 left-0 right-0 z-50 justify-around lg:justify-start px-2 sm:px-3 lg:px-4 pb-6 sm:pb-3 lg:pb-4">
             <button 
               onClick={() => handleTabChange('inicio')}
-              className={`group flex-[0.8] lg:w-full min-w-[60px] sm:min-w-0 rounded-xl py-2 sm:py-3 px-1 sm:px-4 font-bold flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-1 sm:gap-3 transition-all ${activeTab === 'inicio' ? 'bg-brand-600 text-white shadow-md scale-[1.03] sm:scale-100' : 'text-slate-500 hover:bg-slate-50'}`}
+              className={`group flex-1 lg:w-full min-w-[48px] sm:min-w-0 rounded-xl py-2 px-1 sm:px-4 font-bold flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-0.5 sm:gap-3 transition-all ${activeTab === 'inicio' ? 'bg-brand-600 text-white shadow-md scale-[1.03] sm:scale-100' : 'text-slate-500 hover:bg-slate-50'}`}
             >
               <Home className={`w-5 h-5 sm:w-5 sm:h-5 ${activeTab === 'inicio' ? 'text-brand-200' : 'text-slate-400 group-hover:text-brand-500'}`} />
-              <span className="text-[10px] sm:text-base leading-none">Início</span>
+              <span className="text-[9px] sm:text-base leading-none">Início</span>
             </button>
             <button 
               onClick={() => handleTabChange('desafios')}
-              className={`group flex-[0.8] lg:w-full min-w-[60px] sm:min-w-0 rounded-xl py-2 sm:py-3 px-1 sm:px-4 font-bold flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-1 sm:gap-3 transition-all ${activeTab === 'desafios' ? 'bg-brand-600 text-white shadow-md scale-[1.03] sm:scale-100' : 'text-slate-500 hover:bg-slate-50'}`}
+              className={`group flex-1 lg:w-full min-w-[48px] sm:min-w-0 rounded-xl py-2 px-1 sm:px-4 font-bold flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-0.5 sm:gap-3 transition-all ${activeTab === 'desafios' ? 'bg-brand-600 text-white shadow-md scale-[1.03] sm:scale-100' : 'text-slate-500 hover:bg-slate-50'}`}
             >
               <Trophy className={`w-5 h-5 sm:w-5 sm:h-5 ${activeTab === 'desafios' ? 'text-brand-200' : 'text-slate-400 group-hover:text-brand-500'}`} />
-              <span className="text-[10px] sm:text-base leading-none">Desafios</span>
+              <span className="text-[9px] sm:text-base leading-none">Desafios</span>
             </button>
             <button 
               onClick={() => handleTabChange('estudo')}
-              className={`group flex-[0.8] lg:w-full min-w-[60px] sm:min-w-0 rounded-xl py-2 sm:py-3 px-1 sm:px-4 font-bold flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-1 sm:gap-3 transition-all ${activeTab === 'estudo' ? 'bg-brand-600 text-white shadow-md scale-[1.03] sm:scale-100' : 'text-slate-500 hover:bg-slate-50'}`}
+              className={`group flex-1 lg:w-full min-w-[48px] sm:min-w-0 rounded-xl py-2 px-1 sm:px-4 font-bold flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-0.5 sm:gap-3 transition-all ${activeTab === 'estudo' ? 'bg-brand-600 text-white shadow-md scale-[1.03] sm:scale-100' : 'text-slate-500 hover:bg-slate-50'}`}
             >
               <BookOpen className={`w-5 h-5 sm:w-5 sm:h-5 ${activeTab === 'estudo' ? 'text-brand-200' : 'text-slate-400 group-hover:text-brand-500'}`} />
-              <span className="text-[10px] sm:text-base leading-none">Apostila</span>
+              <span className="text-[9px] sm:text-base leading-none">Apostila</span>
             </button>
             <button 
               onClick={() => handleTabChange('album')}
-              className={`group flex-[0.8] lg:w-full min-w-[60px] sm:min-w-0 rounded-xl py-2 sm:py-3 px-1 sm:px-4 font-bold flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-1 sm:gap-3 transition-all ${activeTab === 'album' ? 'bg-brand-600 text-white shadow-md scale-[1.03] sm:scale-100' : 'text-slate-500 hover:bg-slate-50'}`}
+              className={`group flex-1 lg:w-full min-w-[48px] sm:min-w-0 rounded-xl py-2 px-1 sm:px-4 font-bold flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-0.5 sm:gap-3 transition-all ${activeTab === 'album' ? 'bg-brand-600 text-white shadow-md scale-[1.03] sm:scale-100' : 'text-slate-500 hover:bg-slate-50'}`}
             >
               <LayoutGrid className={`w-5 h-5 sm:w-5 sm:h-5 ${activeTab === 'album' ? 'text-brand-200' : 'text-slate-400 group-hover:text-brand-500'}`} />
-              <span className="text-[10px] sm:text-base leading-none">Álbum</span>
+              <span className="text-[9px] sm:text-base leading-none">Álbum</span>
             </button>
             <button 
               onClick={() => handleTabChange('loja')}
-              className={`group flex-[0.8] lg:w-full min-w-[60px] sm:min-w-0 rounded-xl py-2 sm:py-3 px-1 sm:px-4 font-bold flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-1 sm:gap-3 transition-all ${activeTab === 'loja' ? 'bg-amber-500 text-white shadow-md scale-[1.03] sm:scale-100' : 'text-slate-500 hover:bg-amber-50'}`}
+              className={`group flex-1 lg:w-full min-w-[48px] sm:min-w-0 rounded-xl py-2 px-1 sm:px-4 font-bold flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-0.5 sm:gap-3 transition-all ${activeTab === 'loja' ? 'bg-amber-500 text-white shadow-md scale-[1.03] sm:scale-100' : 'text-slate-500 hover:bg-amber-50'}`}
             >
               <ShoppingBag className={`w-5 h-5 sm:w-5 sm:h-5 ${activeTab === 'loja' ? 'text-amber-200' : 'text-slate-400 group-hover:text-amber-500'}`} />
-              <span className="text-[10px] sm:text-base leading-none">Loja</span>
+              <span className="text-[9px] sm:text-base leading-none">Loja</span>
             </button>
             <button 
               onClick={() => handleTabChange('trocas')}
-              className={`group flex-[0.8] lg:w-full min-w-[60px] sm:min-w-0 rounded-xl py-2 sm:py-3 px-1 sm:px-4 font-bold flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-1 sm:gap-3 transition-all ${activeTab === 'trocas' ? 'bg-indigo-500 text-white shadow-md scale-[1.03] sm:scale-100' : 'text-slate-500 hover:bg-indigo-50'}`}
+              className={`group flex-1 lg:w-full min-w-[48px] sm:min-w-0 rounded-xl py-2 px-1 sm:px-4 font-bold flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-0.5 sm:gap-3 transition-all ${activeTab === 'trocas' ? 'bg-indigo-500 text-white shadow-md scale-[1.03] sm:scale-100' : 'text-slate-500 hover:bg-indigo-50'}`}
             >
               <ArrowRightLeft className={`w-5 h-5 sm:w-5 sm:h-5 ${activeTab === 'trocas' ? 'text-indigo-200' : 'text-slate-400 group-hover:text-indigo-500'}`} />
-              <span className="text-[10px] sm:text-base leading-none">Trocas</span>
+              <span className="text-[9px] sm:text-base leading-none">Trocas</span>
             </button>
             <button 
               onClick={() => handleTabChange('ranking')}
-              className={`group flex-[0.8] lg:w-full min-w-[60px] sm:min-w-0 rounded-xl py-2 sm:py-3 px-1 sm:px-4 font-bold flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-1 sm:gap-3 transition-all ${activeTab === 'ranking' ? 'bg-brand-600 text-white shadow-md scale-[1.03] sm:scale-100' : 'text-slate-500 hover:bg-slate-50'}`}
+              className={`group flex-1 lg:w-full min-w-[48px] sm:min-w-0 rounded-xl py-2 px-1 sm:px-4 font-bold flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-0.5 sm:gap-3 transition-all ${activeTab === 'ranking' ? 'bg-brand-600 text-white shadow-md scale-[1.03] sm:scale-100' : 'text-slate-500 hover:bg-slate-50'}`}
             >
               <Crown className={`w-5 h-5 sm:w-5 sm:h-5 ${activeTab === 'ranking' ? 'text-brand-200' : 'text-slate-400 group-hover:text-amber-500'}`} />
-              <span className="text-[10px] sm:text-base leading-none">Ranking</span>
+              <span className="text-[9px] sm:text-base leading-none">Ranking</span>
             </button>
             <button 
               onClick={() => handleTabChange('perfil')}
-              className={`group flex-[0.8] lg:w-full min-w-[60px] sm:min-w-0 rounded-xl py-2 sm:py-3 px-1 sm:px-4 font-bold flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-1 sm:gap-3 transition-all ${activeTab === 'perfil' ? 'bg-brand-600 text-white shadow-md scale-[1.03] sm:scale-100' : 'text-slate-500 hover:bg-slate-50'}`}
+              className={`group flex-1 lg:w-full min-w-[48px] sm:min-w-0 rounded-xl py-2 px-1 sm:px-4 font-bold flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-0.5 sm:gap-3 transition-all ${activeTab === 'perfil' ? 'bg-brand-600 text-white shadow-md scale-[1.03] sm:scale-100' : 'text-slate-500 hover:bg-slate-50'}`}
             >
               <UserIcon className={`w-5 h-5 sm:w-5 sm:h-5 ${activeTab === 'perfil' ? 'text-brand-200' : 'text-slate-400 group-hover:text-brand-500'}`} />
-              <span className="text-[10px] sm:text-base leading-none">Perfil</span>
+              <span className="text-[9px] sm:text-base leading-none">Perfil</span>
             </button>
             {user.isAdmin && (
               <button 
