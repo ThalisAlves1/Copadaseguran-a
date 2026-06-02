@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Home, LogOut, CheckCircle2, Building2, PlayCircle, Trophy, ShoppingBag, Coins, LayoutGrid, UserCheck, MessageSquare, Pill, Stethoscope, Droplets, ShieldAlert, ArrowLeft, BookOpen, Crown, User as UserIcon, AlertCircle, Zap, ArrowRightLeft, Search, ShieldCheck, Award, UserPlus, Trash2, Lock, Unlock, Upload, Image, Database, Wifi, WifiOff, Edit } from 'lucide-react';
+import { Home, LogOut, CheckCircle2, Building2, PlayCircle, Trophy, ShoppingBag, Coins, LayoutGrid, UserCheck, MessageSquare, Pill, Stethoscope, Droplets, ShieldAlert, ArrowLeft, BookOpen, Crown, User as UserIcon, AlertCircle, Zap, ArrowRightLeft, Search, ShieldCheck, Award, UserPlus, Trash2, Lock, Unlock, Upload, Image, Database, Wifi, WifiOff, Edit, X } from 'lucide-react';
 import { User, MetaProgress } from '../types';
 import { Store } from './Store';
 import { Quiz } from './Quiz';
@@ -41,6 +41,7 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
   const [sectorRankingMetric, setSectorRankingMetric] = useState<'average' | 'total'>('average');
   const [selectedMeta, setSelectedMeta] = useState<number | null>(null);
   const [studyMetaId, setStudyMetaId] = useState<number | null>(null);
+  const [zoomedSticker, setZoomedSticker] = useState<StickerDefinition | null>(null);
   const [isQuizActive, setIsQuizActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [adminRefresh, setAdminRefresh] = useState(0);
@@ -354,13 +355,26 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
             progress: updatedUser.progress,
             isAdmin: !!updatedUser.is_admin
         } : u));
+
+        // Sync the logged-in user if they were the one updated
+        if (onUpdateUser && user.cpf === updatedUser.cpf) {
+          onUpdateUser({
+            cpf: updatedUser.cpf,
+            name: updatedUser.name,
+            sector: updatedUser.sector,
+            coins: updatedUser.coins,
+            stickers: updatedUser.stickers,
+            progress: updatedUser.progress,
+            isAdmin: !!updatedUser.is_admin
+          });
+        }
       }
     });
 
     return () => {
       subscription?.unsubscribe();
     };
-  }, []);
+  }, [user.cpf, onUpdateUser]);
 
 
   const computeSectorRanking = () => {
@@ -917,10 +931,11 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                   const prog = user.progress[meta.id];
                   const today = new Date().toISOString().split('T')[0];
                   
-                  const isTreinoLivre = prog?.totalCoinsEarned && prog.totalCoinsEarned >= 150;
-                  const isAmador = prog?.isAmador || (prog?.totalCoinsEarned && prog.totalCoinsEarned > 0 && prog.lastPlayedDate !== today);
-                  let attemptsToday = prog?.lastPlayedDate === today ? (prog.attemptsToday || 0) : 0;
-                  const hasAttemptsRemaining = attemptsToday < 3;
+                  const isTreinoLivre = !!(prog?.totalCoinsEarned && prog.totalCoinsEarned >= 150);
+                  const hasPerfected = !!prog?.hasPerfected;
+                  const totalAttempts = prog?.totalAttempts || 0;
+                  const hasAttemptsRemaining = totalAttempts < 3 && !hasPerfected;
+                  const isAmador = !!(prog?.isAmador || (prog?.totalCoinsEarned && prog.totalCoinsEarned > 0 && prog.lastPlayedDate !== today));
                   
                   return (
                     <motion.div
@@ -973,21 +988,26 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                             {/* Informações de Regras */}
                             <div className="flex flex-col gap-3 mb-6">
                               {isTreinoLivre ? (
-                                <div className="bg-slate-100 text-slate-700 rounded-lg p-3 text-sm font-medium flex items-center gap-2">
+                                <div className="bg-slate-100 text-slate-800 rounded-lg p-3 text-sm font-medium flex items-center gap-2">
                                   <CheckCircle2 className="w-5 h-5 text-slate-500 shrink-0" />
-                                  Você já alcançou o teto de 150 moedas nesta meta! O modo Treino Livre gera conhecimento, mas não gera novas moedas.
+                                  Você já atingiu o máximo de moedas nesta meta! O modo Treino Livre gera habilidade, mas não novas moedas.
                                 </div>
-                              ) : isAmador ? (
-                                <div className="bg-blue-50 text-blue-800 rounded-lg p-3 text-sm font-medium flex items-center gap-2">
-                                  <AlertCircle className="w-5 h-5 text-blue-500 shrink-0" />
-                                  Recompensa de Amador: Você já completou rodadas desta meta em dias anteriores. Cada acerto hoje pagará 2 moedas (sem bônus multiplicador).
+                              ) : hasPerfected ? (
+                                <div className="bg-green-50 text-green-800 rounded-lg p-3 text-sm font-medium flex items-center gap-2">
+                                  <Trophy className="w-5 h-5 text-green-600 shrink-0" />
+                                  Excelente! Você completou esta meta com perfeição na primeira tentativa.
+                                </div>
+                              ) : totalAttempts >= 3 ? (
+                                <div className="bg-red-50 text-red-800 rounded-lg p-3 text-sm font-medium flex items-center gap-2">
+                                  <ShieldAlert className="w-5 h-5 text-red-600 shrink-0" />
+                                  Você esgotou suas tentativas totais nesta meta.
                                 </div>
                               ) : (
                                 <div className="bg-amber-50 text-amber-800 rounded-lg p-3 text-sm font-medium flex items-center gap-2">
                                   <Zap className="w-5 h-5 text-amber-500 shrink-0" />
-                                  {attemptsToday === 0 
+                                  {totalAttempts === 0 
                                     ? 'Modo Chute de Primeira Ativo: Bônus máximo liberado! Faça de primeira para multiplicar suas moedas.'
-                                    : `Você tem ${3 - attemptsToday} chance(s) restante(s) hoje para melhorar seu saldo nesta meta.`}
+                                    : `Você tem ${3 - totalAttempts} chance(s) restante(s) para melhorar seu saldo nesta meta.`}
                                 </div>
                               )}
                             </div>
@@ -1095,7 +1115,7 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
                             const hasSticker = user.stickers.includes(sticker.id);
                             if (hasSticker) {
                               return (
-                                <div key={`${sticker.id}-${i}`} className={`w-full aspect-[2.5/3.5] max-w-[140px] rounded-xl flex flex-col items-center justify-center p-1.5 text-center border-[5px] shadow-sm relative overflow-hidden group transition-all hover:scale-105 hover:shadow-xl hover:z-10 focus:z-10 ${sticker.rarity === 'suprema' ? 'bg-yellow-400 border-yellow-300 text-yellow-950' : sticker.rarity === 'lendaria' ? 'bg-fuchsia-600 border-fuchsia-400 text-white' : sticker.rarity === 'holografica' ? 'bg-cyan-400 border-cyan-300 text-cyan-950' : 'bg-white border-slate-100 text-slate-800'}`}>
+                                <div key={`${sticker.id}-${i}`} onClick={() => setZoomedSticker(sticker)} className={`w-full aspect-[2.5/3.5] max-w-[140px] rounded-xl flex flex-col items-center justify-center p-1.5 text-center border-[5px] shadow-sm relative overflow-hidden group transition-all hover:scale-105 hover:shadow-xl hover:z-10 focus:z-10 cursor-pointer ${sticker.rarity === 'suprema' ? 'bg-yellow-400 border-yellow-300 text-yellow-950' : sticker.rarity === 'lendaria' ? 'bg-fuchsia-600 border-fuchsia-400 text-white' : sticker.rarity === 'holografica' ? 'bg-cyan-400 border-cyan-300 text-cyan-950' : 'bg-white border-slate-100 text-slate-800'}`}>
                                   {sticker.rarity !== 'regular' && (
                                     <div className="absolute top-0 bottom-0 left-0 w-[200%] bg-gradient-to-r from-transparent via-white/50 to-transparent -translate-x-[60%] group-hover:animate-shimmer pointer-events-none" />
                                   )}
@@ -1134,6 +1154,36 @@ export function Dashboard({ user, onLogout, onBuyPack, onQuizFinish, onTradeComp
               </div>
             </motion.div>
           )}
+
+          <AnimatePresence>
+            {zoomedSticker && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                onClick={() => setZoomedSticker(null)}
+              >
+                <motion.div
+                  initial={{ scale: 0.9 }}
+                  animate={{ scale: 1 }}
+                  exit={{ scale: 0.9 }}
+                  className="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl relative"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button 
+                    onClick={() => setZoomedSticker(null)} 
+                    className="absolute -top-3 -right-3 bg-white hover:bg-slate-100 rounded-full p-2 shadow-md border border-slate-200"
+                  >
+                    <X className="w-5 h-5 text-slate-500" />
+                  </button>
+                  <StickerImage id={zoomedSticker.id} name={zoomedSticker.name} customImage={zoomedSticker.image} className="!max-h-[300px] !w-auto mx-auto" />
+                  <h4 className="font-bold text-center text-xl mt-4 text-slate-800">{zoomedSticker.name}</h4>
+                  <p className="text-center text-slate-500 text-sm mt-1 uppercase tracking-widest font-bold">Raridade: {zoomedSticker.rarity}</p>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {activeTab === 'trocas' && (
             <motion.div
