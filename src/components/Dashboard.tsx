@@ -9,7 +9,8 @@ import { WelcomeScreen } from './WelcomeScreen';
 import { StudyMaterial } from './StudyMaterial';
 import { getStoredUsers, saveStoredUsers, formatCPF } from '../lib/auth';
 import { StickerDefinition, getStickerById, getAllStickers, getStoredStickers, saveStoredStickers } from '../lib/store';
-import { dbGetUsers, dbGetStickers, dbSaveSingleUser, isSupabaseConfigured, lastSupabaseError, dbInsertSticker, dbUpdateSticker, dbDeleteSticker, dbSaveWholeCatalog, DB_DEFAULT_STICKERS, subscribeToUsers } from '../lib/supabase';
+import { dbGetUsers, dbGetStickers, dbSaveSingleUser, dbInsertSticker, dbUpdateSticker, dbDeleteSticker, dbSaveWholeCatalog, subscribeToUsers } from '../lib/firebase';
+import { DB_DEFAULT_STICKERS } from '../lib/supabase'; // Keep this one for now, as it just holds static default data
 import { StickerImage } from './StickerImage';
 
 
